@@ -2,9 +2,12 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
-const sourcePath = path.join(root, "sneub.js");
 const htmlPath = path.join(root, "seu-namoro-e-uma-bosta.html");
-const source = fs.readFileSync(sourcePath, "utf8").trimEnd();
+const sourcePaths = [
+  path.join(root, "src", "sneub-core.js"),
+  path.join(root, "sneub.js")
+];
+const source = sourcePaths.map((sourcePath) => fs.readFileSync(sourcePath, "utf8").trimEnd()).join("\n\n");
 const html = fs.readFileSync(htmlPath, "utf8");
 const openMarker = "  <script>";
 const closeMarker = "</script>";
@@ -15,7 +18,7 @@ if (open < 0 || close < 0 || close <= open) {
   throw new Error("Não encontrei o bloco <script> standalone.");
 }
 if (source.includes(closeMarker)) {
-  throw new Error("sneub.js contém </script> e não pode ser incorporado com segurança.");
+  throw new Error("Uma fonte JavaScript contém </script> e não pode ser incorporada com segurança.");
 }
 
 const synced = `${html.slice(0, open)}${openMarker}\n${source}\n  ${closeMarker}${html.slice(close + closeMarker.length)}`;
@@ -27,5 +30,5 @@ if (process.argv.includes("--check")) {
   }
 } else if (synced !== html) {
   fs.writeFileSync(htmlPath, synced, "utf8");
-  process.stdout.write("JavaScript standalone sincronizado.\n");
+  process.stdout.write("Core e aplicação standalone sincronizados.\n");
 }

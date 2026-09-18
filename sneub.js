@@ -473,12 +473,21 @@ const BLURB = {
   seguranca: "Há um sinal de medo, controle ou violência. Isso não entra em roast."
 };
 
-
+const {
+  CUSTOM_ANSWER,
+  CUSTOM_ANSWER_MAX_CHARS,
+  collectCustomAnswers: collectCustomAnswersFromState,
+  commentPayload: buildCommentPayload,
+  createEmptyState,
+  hasValidCustomAnswer: customAnswerIsValid,
+  normalizeState,
+  patterns: calculatePatterns,
+  safetyLocked: stateSafetyLocked,
+  safetyModeAt: stateSafetyModeAt,
+  validCustomAnalysis
+} = SneubCore;
 const KEY = "sneub-v3";
-const CUSTOM_ANSWER = "__custom__";
-const CUSTOM_ANSWER_MAX_CHARS = 500;
 const JEV_TIMEOUT_MS = 5000;
-const empty = { i: 0, a: {}, c: {}, w: {}, syn: {}, anos: "" };
 const COMMENT_TIMEOUT_MS = 8500;
 const COMMENT_CACHE_LIMIT = 64;
 const COMMENT_SAFETY_TEXT = "Sem piada agora. O que você marcou pode ser sério. Isso merece apoio real, não um roast.";
@@ -490,18 +499,9 @@ let commentSessionId = null;
 function loadState() {
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return { ...empty, a: {}, c: {}, w: {}, syn: {} };
-    const parsed = JSON.parse(raw);
-    return {
-      i: Number(parsed.i) || 0,
-      a: parsed.a && typeof parsed.a === "object" ? parsed.a : {},
-      c: parsed.c && typeof parsed.c === "object" ? parsed.c : {},
-      w: parsed.w && typeof parsed.w === "object" ? parsed.w : {},
-      syn: parsed.syn && typeof parsed.syn === "object" ? parsed.syn : {},
-      anos: typeof parsed.anos === "string" ? parsed.anos : ""
-    };
+    return raw ? normalizeState(JSON.parse(raw)) : createEmptyState();
   } catch {
-    return { i: 0, a: {}, c: {}, w: {}, syn: {}, anos: "" };
+    return createEmptyState();
   }
 }
 
@@ -539,32 +539,19 @@ function show(id) {
 }
 
 function safetyLocked() {
-  const i = state.a.seguranca;
-  if (i == null) return false;
-  const o = Q.find((q) => q.id === "seguranca").opts[i];
-  return Boolean(o && o.tone === "r");
+  return stateSafetyLocked(Q, state);
 }
 
 function allowsCustomAnswer(q) {
-  return q.allowCustom !== false;
-}
-
-function questionThemes(q) {
-  return [...new Set(q.opts.flatMap((option) => Object.keys(option.themes || {})))];
+  return SneubCore.allowsCustomAnswer(q);
 }
 
 function hasValidCustomAnswer(q) {
-  return state.a[q.id] === CUSTOM_ANSWER &&
-    typeof state.c[q.id] === "string" &&
-    state.c[q.id].trim().length > 0 &&
-    state.c[q.id].length <= CUSTOM_ANSWER_MAX_CHARS;
+  return customAnswerIsValid(state, q);
 }
 
 function safetyModeAt(index) {
-  return Q.slice(0, index + 1).some((q) => {
-    const answer = state.a[q.id];
-    return answer != null && q.opts[answer] && q.opts[answer].tone === "r";
-  });
+  return stateSafetyModeAt(Q, state, index);
 }
 
 function cancelCommentRequest() {
@@ -587,26 +574,7 @@ function commentSession() {
 }
 
 function commentPayload(item, idx) {
-  const index = Q.indexOf(item);
-  const selected = item.opts[idx];
-  return {
-    question: { id: item.id, chapter: item.ch, text: item.q },
-    selected: { index: idx, text: selected.t, tone: selected.tone, themes: selected.themes || {} },
-    previous: Q.slice(0, index).flatMap((q) => {
-      const answer = state.a[q.id];
-      if (answer == null || !q.opts[answer]) return [];
-      const option = q.opts[answer];
-      return [{
-        questionId: q.id,
-        chapter: q.ch,
-        questionText: q.q,
-        optionIndex: answer,
-        optionText: option.t,
-        tone: option.tone,
-        themes: option.themes || {}
-      }];
-    })
-  };
+  return buildCommentPayload(Q, state, item, idx);
 }
 
 function renderLocalReaction(option, safety = false) {
@@ -699,38 +667,8 @@ async function requestAgentComment(item, idx) {
   }
 }
 
-function mergeCustomSignals(bag, customAnalysis) {
-  if (!customAnalysis || typeof customAnalysis !== "object") return bag;
-  Q.forEach((q) => {
-    if (!hasValidCustomAnswer(q)) return;
-    const result = customAnalysis[q.id];
-    if (!result || !["good", "warn", "bad"].includes(result.state)) return;
-    questionThemes(q).forEach((theme) => {
-      if (!bag[theme]) bag[theme] = { good: 0, warn: 0, bad: 0 };
-      bag[theme][result.state]++;
-    });
-  });
-  return bag;
-}
-
 function patterns(customAnalysis) {
-  const bag = {};
-  Q.forEach((q) => {
-    const i = state.a[q.id];
-    if (i == null) return;
-    const option = q.opts[i];
-    if (!option) return;
-    Object.entries(option.themes || {}).forEach(([k, v]) => {
-      if (!bag[k]) bag[k] = { good: 0, warn: 0, bad: 0 };
-      bag[k][v]++;
-    });
-  });
-  mergeCustomSignals(bag, customAnalysis);
-  return Object.entries(bag).map(([k, v]) => {
-    const n = v.good + v.warn + v.bad;
-    const heat = (v.bad * 2 + v.warn) / Math.max(1, n);
-    return { k, ...v, n, heat };
-  }).sort((a, b) => b.heat - a.heat || b.n - a.n);
+  return calculatePatterns(Q, state, customAnalysis);
 }
 
 function roastLine(rows, locked) {
@@ -969,42 +907,7 @@ function renderWrites() {
 }
 
 function collectCustomAnswers() {
-  return Q.flatMap((q) => {
-    if (!allowsCustomAnswer(q) || !hasValidCustomAnswer(q)) return [];
-    return [{
-      id: q.id,
-      chapter: q.ch,
-      question: q.q,
-      text: state.c[q.id].trim(),
-      themes: questionThemes(q)
-    }];
-  });
-}
-
-function validAnalysisProbabilities(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const keys = Object.keys(value).sort();
-  if (keys.join(",") !== "bad,good,unclear,warn") return false;
-  const probabilities = keys.map((key) => value[key]);
-  return probabilities.every((number) => Number.isFinite(number) && number >= 0 && number <= 1) &&
-    Math.abs(probabilities.reduce((sum, number) => sum + number, 0) - 1) <= 0.001;
-}
-
-function validCustomAnalysis(value, answers) {
-  if (!value || typeof value !== "object" || Array.isArray(value) ||
-      Object.keys(value).some((key) => key !== "analysis") ||
-      !value.analysis || typeof value.analysis !== "object" || Array.isArray(value.analysis)) return null;
-  const expectedIds = answers.map((answer) => answer.id).sort();
-  if (Object.keys(value.analysis).sort().join(",") !== expectedIds.join(",")) return null;
-  for (const id of expectedIds) {
-    const result = value.analysis[id];
-    if (!result || typeof result !== "object" || Array.isArray(result) ||
-        Object.keys(result).sort().join(",") !== "confidence,probabilities,state" ||
-        !["good", "warn", "bad", "unclear"].includes(result.state) ||
-        !Number.isFinite(result.confidence) || result.confidence < 0 || result.confidence > 1 ||
-        !validAnalysisProbabilities(result.probabilities)) return null;
-  }
-  return value.analysis;
+  return collectCustomAnswersFromState(Q, state);
 }
 
 async function requestCustomAnalysis(answers) {

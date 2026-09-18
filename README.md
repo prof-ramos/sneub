@@ -4,8 +4,9 @@ Questionário standalone, sem cadastro e sem banco de dados, que transforma alte
 
 ## Arquitetura
 
-- `sneub.js` é a fonte canônica do questionário, estado, navegação, scoring e apresentação.
-- `seu-namoro-e-uma-bosta.html` contém o CSS, o markup e uma cópia inline gerada de `sneub.js`.
+- `src/sneub-core.js` contém as regras puras de estado, segurança, privacidade do payload, validação e scoring.
+- `sneub.js` contém o catálogo editorial, navegação e apresentação no navegador.
+- `seu-namoro-e-uma-bosta.html` contém o CSS, o markup e cópias inline geradas do core e da aplicação.
 - `api/comment.js` gera comentários opcionais para alternativas fechadas. O payload não aceita respostas livres, caderno, síntese ou a resposta de três anos.
 - `api/analyze.js` envia somente respostas ativas de “Outra resposta…” ao Jev, depois de consentimento explícito. Ele normaliza a resposta do provedor para o contrato interno do SNEUB.
 - `localStorage` (`sneub-v3`) guarda respostas fechadas em `a`, respostas customizadas em `c` e os campos editoriais existentes. Estados antigos sem `c` continuam válidos.
@@ -78,7 +79,7 @@ O merge é determinístico: uma classificação válida acrescenta uma observaç
 
 ## Sincronização do HTML standalone
 
-Depois de alterar `sneub.js`, execute:
+Depois de alterar `src/sneub-core.js` ou `sneub.js`, execute:
 
 ```sh
 node scripts/sync-inline.js
