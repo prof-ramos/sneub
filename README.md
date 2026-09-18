@@ -10,6 +10,7 @@ Questionário standalone, sem cadastro e sem banco de dados, que transforma alte
 - `api/comment.js` gera comentários opcionais para alternativas fechadas. O payload não aceita respostas livres, caderno, síntese ou a resposta de três anos.
 - `api/analyze.js` envia somente respostas ativas de “Outra resposta…” ao Jev, depois de consentimento explícito. Ele normaliza a resposta do provedor para o contrato interno do SNEUB.
 - `server/http.js`, `server/analysis-contract.js` e `server/jev.js` isolam infraestrutura HTTP, allowlist/normalização e transporte TypeSafe dos handlers Vercel.
+- `vercel.json` publica o HTML standalone na rota `/`; as funções continuam disponíveis em `/api/comment` e `/api/analyze`.
 - `localStorage` (`sneub-v3`) guarda respostas fechadas em `a`, respostas customizadas em `c` e os campos editoriais existentes. Estados antigos sem `c` continuam válidos.
 
 O fluxo sem respostas customizadas não chama o Jev. No fluxo customizado, a pessoa pode continuar sem enviar; nesse caso as respostas livres ficam salvas localmente, mas não entram no score. Uma falha, timeout ou resposta inválida do Jev também cai no resultado local.
