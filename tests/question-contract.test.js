@@ -18,6 +18,7 @@ test("backend custom-answer allowlist matches the canonical questionnaire", () =
     .filter((question) => question.allowCustom !== false)
     .map((question) => [question.id, {
       chapter: question.ch,
+      question: question.q,
       themes: [...new Set(question.opts.flatMap((option) => Object.keys(option.themes || {})))]
     }]));
   assert.deepEqual(QUESTION_META, expected);
