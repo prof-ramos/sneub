@@ -1,0 +1,10 @@
+{
+  "name": "sneub",
+  "private": true,
+  "scripts": {
+    "check": "node scripts/check.js",
+    "dev": "node scripts/dev-server.js",
+    "sync": "node scripts/sync-inline.js",
+    "test": "node --test api/*.test.js tests/*.test.js"
+  }
+}

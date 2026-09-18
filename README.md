@@ -9,6 +9,7 @@ Questionário standalone, sem cadastro e sem banco de dados, que transforma alte
 - `seu-namoro-e-uma-bosta.html` contém o CSS, o markup e cópias inline geradas do core e da aplicação.
 - `api/comment.js` gera comentários opcionais para alternativas fechadas. O payload não aceita respostas livres, caderno, síntese ou a resposta de três anos.
 - `api/analyze.js` envia somente respostas ativas de “Outra resposta…” ao Jev, depois de consentimento explícito. Ele normaliza a resposta do provedor para o contrato interno do SNEUB.
+- `server/http.js`, `server/analysis-contract.js` e `server/jev.js` isolam infraestrutura HTTP, allowlist/normalização e transporte TypeSafe dos handlers Vercel.
 - `localStorage` (`sneub-v3`) guarda respostas fechadas em `a`, respostas customizadas em `c` e os campos editoriais existentes. Estados antigos sem `c` continuam válidos.
 
 O fluxo sem respostas customizadas não chama o Jev. No fluxo customizado, a pessoa pode continuar sem enviar; nesse caso as respostas livres ficam salvas localmente, mas não entram no score. Uma falha, timeout ou resposta inválida do Jev também cai no resultado local.
@@ -96,12 +97,15 @@ Não edite manualmente o JavaScript dentro do HTML.
 ## Testes
 
 ```sh
-node --check sneub.js
-node --check api/comment.js
-node --check api/analyze.js
-node --test api/comment.test.js
-node --test api/analyze.test.js
-node scripts/sync-inline.js --check
+npm run check
+```
+
+O projeto continua sem dependências. `npm run check` usa somente Node e Git para validar sintaxe, executar todos os testes, conferir a sincronização standalone e rejeitar whitespace inválido no diff.
+
+Para executar localmente com as mesmas rotas `/api/comment` e `/api/analyze` usadas no navegador:
+
+```sh
+npm run dev
 ```
 
 Também valide no navegador: navegação e recarga com resposta customizada, troca entre alternativa fechada e customizada, bloqueio de texto vazio, consentimento/recusa, uma única chamada para várias respostas, fallback do Jev, compartilhamento, wipe e todos os caminhos de segurança com `180`/`188`.

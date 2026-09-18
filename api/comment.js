@@ -1,22 +1,21 @@
+const {
+  bodySize,
+  createRateLimiter,
+  hasOnlyKeys,
+  isRecord,
+  jsonResponse,
+  parseBody
+} = require("../server/http.js");
+
 const MAX_BODY_BYTES = 16 * 1024;
 const MAX_PREVIOUS = 64;
 const MAX_COMMENT_CHARS = 280;
 const DEFAULT_TIMEOUT_MS = 8000;
-const DEFAULT_RATE_LIMIT = 20;
-const DEFAULT_RATE_WINDOW_MS = 5 * 60 * 1000;
-const rateBuckets = new Map();
+const allowRequest = createRateLimiter({ max: 20, windowMs: 5 * 60 * 1000 });
 
 const SAFETY_COMMENT = "Sem piada agora. O que você marcou pode ser sério. Isso merece apoio real, não um roast.";
 const TONES = new Set(["g", "y", "r"]);
 const THEME_STATES = new Set(["good", "warn", "bad"]);
-
-function isRecord(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function hasOnlyKeys(value, keys) {
-  return isRecord(value) && Object.keys(value).every((key) => keys.includes(key));
-}
 
 function validShortText(value, max) {
   return typeof value === "string" && value.trim().length > 0 && value.length <= max;
@@ -67,51 +66,6 @@ function validatePayload(payload) {
   return { ok: true, value: payload };
 }
 
-function bodySize(body) {
-  if (typeof body === "string") return Buffer.byteLength(body, "utf8");
-  try { return Buffer.byteLength(JSON.stringify(body || {}), "utf8"); } catch (_) { return MAX_BODY_BYTES + 1; }
-}
-
-function parseBody(req) {
-  const body = req && req.body;
-  if (body && typeof body === "object") return body;
-  if (typeof body !== "string" || !body.trim()) return null;
-  try { return JSON.parse(body); } catch (_) { return null; }
-}
-
-function clientIdentity(req) {
-  const session = req && req.headers && (req.headers["x-sneub-session"] || req.headers["X-Sneub-Session"]);
-  if (session && typeof session === "string" && session.length <= 100) return `session:${session}`;
-  const forwarded = req && req.headers && (req.headers["x-forwarded-for"] || req.headers["X-Forwarded-For"]);
-  if (forwarded && typeof forwarded === "string") return `ip:${forwarded.split(",")[0].trim()}`;
-  return `ip:${req && req.socket && req.socket.remoteAddress || "anonymous"}`;
-}
-
-function allowRequest(req, options = {}) {
-  const now = Date.now();
-  const max = options.max || DEFAULT_RATE_LIMIT;
-  const windowMs = options.windowMs || DEFAULT_RATE_WINDOW_MS;
-  const key = clientIdentity(req);
-  const bucket = rateBuckets.get(key);
-  if (!bucket || now - bucket.startedAt >= windowMs) {
-    rateBuckets.set(key, { startedAt: now, count: 1 });
-    return true;
-  }
-  if (bucket.count >= max) return false;
-  bucket.count += 1;
-  return true;
-}
-
-function jsonResponse(res, status, value) {
-  if (res && typeof res.status === "function" && typeof res.json === "function") {
-    return res.status(status).json(value);
-  }
-  res.statusCode = status;
-  if (typeof res.setHeader === "function") res.setHeader("content-type", "application/json; charset=utf-8");
-  if (typeof res.end === "function") res.end(JSON.stringify(value));
-  return undefined;
-}
-
 function providerText(body) {
   const chatContent = body && body.choices && body.choices[0] && body.choices[0].message && body.choices[0].message.content;
   if (typeof chatContent === "string") return chatContent;
@@ -156,19 +110,19 @@ function providerRequest(payload, env, fetchImpl, timeoutMs) {
     },
     { role: "user", content: JSON.stringify(payload) }
   ];
-  const request = fetchImpl(`${baseUrl}/chat/completions`, {
+  const request = Promise.resolve().then(() => fetchImpl(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({ model, messages, max_tokens: 256 }),
     signal: controller.signal
-  });
+  }));
   return request.finally(() => clearTimeout(timer));
 }
 
 async function handleComment(req, res, options = {}) {
   if (!req || req.method !== "POST") return jsonResponse(res, 405, { error: "method_not_allowed" });
   const body = req.body;
-  if (bodySize(body) > MAX_BODY_BYTES) return jsonResponse(res, 400, { error: "payload_too_large" });
+  if (bodySize(body, MAX_BODY_BYTES) > MAX_BODY_BYTES) return jsonResponse(res, 400, { error: "payload_too_large" });
   if (!allowRequest(req, options.rateLimit)) return jsonResponse(res, 429, { error: "rate_limited" });
 
   const validation = validatePayload(parseBody(req));
@@ -202,7 +156,7 @@ function handler(req, res) {
 }
 
 function resetRateLimitForTests() {
-  rateBuckets.clear();
+  allowRequest.reset();
 }
 
 module.exports = handler;
