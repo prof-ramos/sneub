@@ -1,0 +1,948 @@
+const CHAPTERS = {
+  1: "Capítulo 1. Você gosta dessa pessoa mesmo?",
+  2: "Capítulo 2. Amor ou estágio não remunerado?",
+  3: "Capítulo 3. Seu sistema nervoso pediu demissão?",
+  4: "Capítulo 4. Você ainda existe fora desse namoro?",
+  5: "Capítulo 5. Agora sem gracinha."
+};
+
+const Q = [
+  { ch: 1, id: "paz",
+    q: "Esta relação te traz mais paz do que dúvidas?",
+    opts: [
+      { t: "Sim.", tone: "g", themes: { paz: "good" },
+        joke: "Que luxo raro. Não normaliza o contrário depois." },
+      { t: "Às vezes.", tone: "y", themes: { paz: "warn" },
+        joke: "O “às vezes” carregando um relacionamento inteiro nas costas.",
+        more: "Dúvida crônica não é profundidade. É o sistema pedindo uma conversa que você vem adiando." },
+      { t: "Não.", tone: "y", themes: { paz: "bad" },
+        joke: "Então não é namoro. É plantão.",
+        more: "Se a paz só aparece no intervalo, o problema não é “pensar demais”. É o que acontece quando vocês estão juntos." },
+      { t: "Não se aplica.", tone: "g", themes: {},
+        joke: "Tudo se aplica. Mas tudo bem, próxima." }
+    ]},
+  { ch: 1, id: "admira",
+    q: "Você admira quem essa pessoa é hoje. ou está esperando que ela vire quem prometeu ser?",
+    opts: [
+      { t: "Admiro quem ela é hoje.", tone: "g", themes: { admiracao: "good" },
+        joke: "Admirar o presente. Conceito revolucionário." },
+      { t: "Estou dividido entre a realidade e o potencial.", tone: "y", themes: { potencial: "warn" },
+        joke: "Potencial não lava louça e não pede desculpa.",
+        more: "Gostar do que alguém poderia ser é um projeto. Relação é com quem está na sala agora." },
+      { t: "Estou principalmente esperando que ela mude.", tone: "y", themes: { potencial: "bad" },
+        joke: "Você não namora. Você administra uma reforma.",
+        more: "Gente não é obra. Se a aposta é a versão futura, vale perguntar o que te prende à atual." },
+      { t: "Não se aplica.", tone: "g", themes: {},
+        joke: "Se não se aplica, por que a pergunta latejou?" }
+    ]},
+  { ch: 1, id: "amigo",
+    q: "Se uma pessoa amiga estivesse numa relação igual à sua, você torceria para o casal ficar junto?",
+    opts: [
+      { t: "Sim.", tone: "g", themes: { escolha: "good" },
+        joke: "Boa. Agora usa a mesma régua com você." },
+      { t: "Talvez.", tone: "y", themes: { escolha: "warn" },
+        joke: "Talvez é o não com educação de aniversário.",
+        more: "Você protegeria o amigo. A pergunta é por que a proteção some quando o caso é o seu." },
+      { t: "Não.", tone: "y", themes: { escolha: "bad" },
+        joke: "Resgate para o amigo. Cativeiro para você.",
+        more: "Se você não recomendaria isso a alguém que ama, não precisa chamar de destino quando acontece com você." },
+      { t: "Não sei responder.", tone: "y", themes: { escolha: "warn" },
+        joke: "Não saber já é um dado.",
+        more: "Gente segura costuma saber se torceria. A hesitação merece um lugar na mesa." }
+    ]},
+  { ch: 1, id: "hoje",
+    q: "Se você conhecesse essa pessoa hoje, sabendo tudo o que sabe… ainda puxaria assunto?",
+    opts: [
+      { t: "Com certeza.", tone: "g", themes: { escolha: "good" },
+        joke: "Consentimento informado. Quase sofisticado." },
+      { t: "Talvez.", tone: "y", themes: { escolha: "warn" },
+        joke: "O “talvez” de novo. Ele trabalha demais neste site.",
+        more: "Se a reprise já não convence, o que te segura não é descoberta. É hábito." },
+      { t: "Acho que não.", tone: "y", themes: { escolha: "bad" },
+        joke: "O corpo votou. A cabeça está fazendo recontagem.",
+        more: "Conhecer agora, com o dossiê aberto, e recuar: isso não é frieza. É informação." },
+      { t: "Eu atravessaria a rua.", tone: "y", themes: { escolha: "bad" },
+        joke: "A calçada sendo mais honesta que o relacionamento.",
+        more: "Se a primeira reação é desvio, vale perguntar o que você está desviando. e por que ainda divide a casa com isso." }
+    ]},
+  { ch: 1, id: "sozinho",
+    q: "Você quer realmente estar nesta relação. ou tem mais medo de ficar sozinho?",
+    opts: [
+      { t: "Quero estar nesta relação.", tone: "g", themes: { escolha: "good" },
+        joke: "Querer é diferente de agarrar. Se for querer, segue." },
+      { t: "É uma combinação das duas coisas.", tone: "y", themes: { apego: "warn" },
+        joke: "Desejo e medo de cadeira vazia na mesma cama.",
+        more: "Medo de ficar só consegue imitar escolha durante anos. Não é o mesmo músculo." },
+      { t: "Tenho mais medo de ficar sozinho.", tone: "y", themes: { apego: "bad" },
+        joke: "Então o namoro é coleira. E a coleira está no seu pescoço.",
+        more: "Companhia contra o vazio não é relação. É anestesia. Anestesia tem efeito colateral." },
+      { t: "Não sei responder.", tone: "y", themes: { apego: "warn" },
+        joke: "Se não sabe se quer, já não está querendo o bastante." }
+    ]},
+  { ch: 1, id: "potencial",
+    q: "Você está apaixonado pela pessoa real ou pelo potencial dela?",
+    opts: [
+      { t: "Pela realidade.", tone: "g", themes: { potencial: "good" },
+        joke: "Ama o que existe. Adulto em extinção." },
+      { t: "Pelos dois.", tone: "g", themes: { potencial: "warn" },
+        joke: "Todo mundo tempera. O problema é quando o tempero vira o prato." },
+      { t: "Principalmente pelo potencial.", tone: "y", themes: { potencial: "bad" },
+        joke: "Você não está apaixonado. Está roteirizando.",
+        more: "Personagem é fácil de amar. Pessoa de carne atrapalha o roteiro. e é com ela que você acorda." },
+      { t: "Não sei responder.", tone: "y", themes: { potencial: "warn" },
+        joke: "Se precisa pensar demais, já não é só a pessoa." }
+    ]},
+  { ch: 1, id: "afeto",
+    q: "Vocês têm momentos genuínos de afeto e carinho que não envolvem sexo?",
+    opts: [
+      { t: "Frequentemente.", tone: "g", themes: { afeto: "good" },
+        joke: "Carinho sem fatura. Guarda isso." },
+      { t: "Às vezes.", tone: "y", themes: { afeto: "warn" },
+        joke: "Às vezes não constrói casa. Constrói saudade de casa.",
+        more: "Afeto intermitente vicia do mesmo jeito que atenção intermitente. Vale olhar a frequência, não o destaque." },
+      { t: "Raramente ou nunca.", tone: "y", themes: { afeto: "bad" },
+        joke: "Então a intimidade de vocês é uma transação.",
+        more: "Sexo pode ser ótimo e ainda assim deixar fome. A fome aqui é de ser tocado sem ter que render." },
+      { t: "Não se aplica.", tone: "g", themes: {},
+        joke: "Se não se aplica, alguém está com fome de pele e chamando isso de “fase”." }
+    ]},
+  { ch: 2, id: "carregar",
+    q: "Essa pessoa está crescendo junto com você. ou você a está carregando nas costas?",
+    opts: [
+      { t: "Estamos crescendo juntos.", tone: "g", themes: { reciprocidade: "good" },
+        joke: "Parceria. Palavra feia de tão rara." },
+      { t: "A relação é desequilibrada em alguns aspectos.", tone: "y", themes: { reciprocidade: "warn" },
+        joke: "“Alguns aspectos” é o eufemismo do seu cansaço.",
+        more: "Desequilíbrio pontual acontece. Desequilíbrio como clima da casa é outra conversa." },
+      { t: "Sinto que estou carregando a pessoa.", tone: "y", themes: { reciprocidade: "bad" },
+        joke: "Carga não é romance. É logística.",
+        more: "Quem carrega sozinho acaba odiando o peso e culpando o amor. São coisas diferentes." },
+      { t: "Não sei responder.", tone: "y", themes: { reciprocidade: "warn" },
+        joke: "Se a dúvida é “será que eu carrego?”, você já está suando." }
+    ]},
+  { ch: 2, id: "curiosidade",
+    q: "Essa pessoa demonstra curiosidade pelos seus interesses?",
+    opts: [
+      { t: "Frequentemente.", tone: "g", themes: { reciprocidade: "good" },
+        joke: "Curiosidade é desejo com educação." },
+      { t: "Às vezes.", tone: "y", themes: { reciprocidade: "warn" },
+        joke: "Às vezes é o mínimo para não parecer monstro.",
+        more: "Interesse real pergunta de novo. Interesse de fachada pergunta uma vez e muda de assunto." },
+      { t: "Raramente ou nunca.", tone: "y", themes: { reciprocidade: "bad" },
+        joke: "Você é cenário. Figurante na própria vida.",
+        more: "Não ser perguntado sobre o que te anima é uma forma educada de desaparecer na presença de alguém." },
+      { t: "Não sei responder.", tone: "y", themes: { reciprocidade: "warn" },
+        joke: "Se você caça sinal de interesse, o interesse já sumiu." }
+    ]},
+  { ch: 2, id: "atencao",
+    q: "Essa pessoa presta atenção no que você diz. ou esquece as histórias que você já contou?",
+    opts: [
+      { t: "Presta atenção.", tone: "g", themes: { comunicacao: "good" },
+        joke: "Ser ouvido é uma forma cara de amor." },
+      { t: "Às vezes esquece.", tone: "g", themes: { comunicacao: "warn" },
+        joke: "Esquecer acontece. Apagar você, não." },
+      { t: "Esquece constantemente.", tone: "y", themes: { comunicacao: "bad" },
+        joke: "Não é memória ruim. É prioridade.",
+        more: "O que a gente ama, a gente guarda torto, mas guarda. Sumir das histórias é um recado." },
+      { t: "Não sei responder.", tone: "y", themes: { comunicacao: "warn" },
+        joke: "Você sabe. Só está sendo educado com quem te ignora." }
+    ]},
+  { ch: 2, id: "conquistas",
+    q: "Essa pessoa celebra suas conquistas individuais. ou só anima quando faz parte da equação?",
+    opts: [
+      { t: "Celebra minhas conquistas por mim.", tone: "g", themes: { reciprocidade: "good" },
+        joke: "Torcida sem comissão. Gente grande." },
+      { t: "Faz as duas coisas.", tone: "g", themes: { reciprocidade: "warn" },
+        joke: "Desde que o “eu também” não roube o palco toda vez." },
+      { t: "Só demonstra entusiasmo quando está envolvida.", tone: "y", themes: { reciprocidade: "bad" },
+        joke: "Seu sucesso só existe se ela puder postar junto.",
+        more: "Comemorar o outro sem entrar na foto é um teste simples. Muita gente reprova e chama de “casal”." },
+      { t: "Não sei responder.", tone: "y", themes: { reciprocidade: "warn" },
+        joke: "Pensa na última coisa boa que te aconteceu. A reação dela já está no tape." }
+    ]},
+  { ch: 2, id: "sonhos",
+    q: "Suas ideias e seus sonhos são bem-recebidos. ou constantemente questionados?",
+    opts: [
+      { t: "São bem-recebidos.", tone: "g", themes: { identidade: "good" },
+        joke: "Casa que cabe sonho alheio é casa." },
+      { t: "Às vezes são questionados de forma construtiva.", tone: "g", themes: { identidade: "good" },
+        joke: "Questionar para fortalecer é amor. O outro esporte tem outro nome." },
+      { t: "São constantemente questionados ou desvalorizados.", tone: "y", themes: { identidade: "bad" },
+        joke: "Alguém está podando você e chamando isso de realismo.",
+        more: "Ceticismo pontual ajuda. Ceticismo como clima faz a pessoa menor. Observe o tamanho que você fica depois de falar um plano." },
+      { t: "Não sei responder.", tone: "y", themes: { identidade: "warn" },
+        joke: "Se você já encolhe o sonho antes de falar, a censura já mora aí." }
+    ]},
+  { ch: 2, id: "explicar",
+    q: "Você se sente compreendido. ou precisa se explicar o tempo todo?",
+    opts: [
+      { t: "Sinto-me compreendido.", tone: "g", themes: { comunicacao: "good" },
+        joke: "Ser entendido é descanso. Não troca por tesão de discussão." },
+      { t: "Às vezes preciso me explicar.", tone: "g", themes: { comunicacao: "warn" },
+        joke: "Explicar de vez em quando é relação. Explicar sempre é tribunal." },
+      { t: "Preciso me explicar constantemente.", tone: "y", themes: { comunicacao: "bad" },
+        joke: "Você está em depoimento permanente.",
+        more: "Quem precisa traduzir a própria existência o dia inteiro não está em diálogo. Está em defesa." },
+      { t: "Não sei responder.", tone: "y", themes: { comunicacao: "warn" },
+        joke: "Cansaço de se explicar geralmente vem disfarçado de “não sei”." }
+    ]},
+  { ch: 2, id: "decifrar",
+    q: "Essa pessoa consegue comunicar o que sente. ou você precisa decifrar o que ela pensa?",
+    opts: [
+      { t: "Ela comunica o que sente.", tone: "g", themes: { comunicacao: "good" },
+        joke: "Comunicação adulta. Espécie ameaçada." },
+      { t: "Às vezes preciso interpretar.", tone: "g", themes: { comunicacao: "warn" },
+        joke: "Todo mundo tem dia mudo. O problema é virar língua antiga." },
+      { t: "Preciso quase sempre decifrar o que ela pensa.", tone: "y", themes: { comunicacao: "bad" },
+        joke: "Você não é médium. E essa vaga não paga extra.",
+        more: "Adivinhar o outro como ofício vira ansiedade com desculpa romântica. Você não precisava dessa função." },
+      { t: "Não sei responder.", tone: "y", themes: { comunicacao: "warn" },
+        joke: "Se você vive adivinhando, já tem a resposta." }
+    ]},
+  { ch: 3, id: "facil",
+    q: "Esta relação tem deixado sua vida mais fácil ou mais difícil?",
+    opts: [
+      { t: "Mais fácil.", tone: "g", themes: { impacto: "good" },
+        joke: "Parceria que reduz atrito. É para isso que serve." },
+      { t: "Nem mais fácil nem mais difícil.", tone: "g", themes: { impacto: "warn" },
+        joke: "Neutro pode ser paz. Ou dessensibilização com nome bonito." },
+      { t: "Mais difícil.", tone: "y", themes: { impacto: "bad" },
+        joke: "Amor que só complica não é profundidade. É custo operacional.",
+        more: "Relação boa também cansa. A diferença é se o cansaço constrói alguma coisa ou só cobra pedágio." },
+      { t: "Não sei responder.", tone: "y", themes: { impacto: "warn" },
+        joke: "Compara sua semana agora com a de dois anos atrás. A folha não mente." }
+    ]},
+  { ch: 3, id: "saudade",
+    q: "Quando você está longe dessa pessoa, sente saudade de verdade. ou principalmente apego?",
+    opts: [
+      { t: "Sinto saudade genuína.", tone: "g", themes: { apego: "good" },
+        joke: "Saudade que aquece é um voto. Apego que aperta é outro." },
+      { t: "Sinto as duas coisas.", tone: "y", themes: { apego: "warn" },
+        joke: "Uma parte te quer. Outra te prende.",
+        more: "Mistura é humana. O ponto é qual das duas manda quando a relação aperta." },
+      { t: "Sinto principalmente apego.", tone: "y", themes: { apego: "bad" },
+        joke: "Apego é vício com álibi romântico.",
+        more: "Falta que irrita, não aquece, costuma ser abstinência. não saudade. Vale separar as duas antes de uma decisão grande." },
+      { t: "Não sei responder.", tone: "y", themes: { apego: "warn" },
+        joke: "Se a falta parece irritação, não é saudade." }
+    ]},
+  { ch: 3, id: "alivio",
+    q: "Nos dias em que vocês ficam separados, você se sente mais descansado?",
+    opts: [
+      { t: "Não.", tone: "g", themes: { alivio: "good" },
+        joke: "Ótimo. Ausência ainda não virou tratamento terapêutico." },
+      { t: "Às vezes.", tone: "y", themes: { alivio: "warn" },
+        joke: "Interessante. Seu sistema nervoso pediu para participar do questionário.",
+        more: "Alívio ocasional pode ser só cansaço de convivência. Alívio que se repete é um recado sobre o que acontece quando vocês estão no mesmo cômodo." },
+      { t: "Sim.", tone: "y", themes: { alivio: "bad" },
+        joke: "Tá. Essa resposta merece menos piada e mais atenção.",
+        more: "Quando estar longe de alguém traz alívio recorrente, vale investigar o que exatamente está te desgastando quando vocês estão juntos." },
+      { t: "Não sei responder.", tone: "y", themes: { alivio: "warn" },
+        joke: "Se o ombro cai quando o Uber dela chega, você sabe." }
+    ]},
+  { ch: 3, id: "corpo",
+    q: "Desde que essa relação começou, você percebeu mudanças persistentes no sono, na ansiedade, na energia ou no bem-estar que parecem ligadas à dinâmica entre vocês?",
+    opts: [
+      { t: "Não. Continuo mais ou menos o mesmo.", tone: "g", themes: { nervoso: "good" },
+        joke: "Seu dermatologista agradece por não entrar nessa DR sem provas." },
+      { t: "Mudanças leves, nada que eu associe com clareza.", tone: "g", themes: { nervoso: "warn" },
+        joke: "Correlação não é culpa. Também não é motivo para fingir que o corpo cala." },
+      { t: "Sim. Percebo um padrão que parece ligado a nós.", tone: "y", themes: { nervoso: "bad" },
+        joke: "O organismo vazou o que a boca ainda negocia.",
+        more: "Isso não prova que a pessoa é o vilão. Prova que a dinâmica está custando caro no lugar errado. Vale olhar com calma. e, se fizer sentido, com ajuda." },
+      { t: "Não sei responder.", tone: "y", themes: { nervoso: "warn" },
+        joke: "Olha uma semana típica. Sono, estômago, paciência. O corpo costuma votar primeiro." }
+    ]},
+  { ch: 3, id: "dinheiro",
+    q: "Sua vida financeira e a sua relação com o dinheiro mudaram, nesta relação, de um jeito que te preocupa?",
+    opts: [
+      { t: "Não. Melhorou ou ficou estável.", tone: "g", themes: { dinheiro: "good" },
+        joke: "Dinheiro alinhado é raro. Não romantiza o contrário." },
+      { t: "Não houve mudança relevante.", tone: "g", themes: { dinheiro: "good" },
+        joke: "Estável ok. Desde que estável não seja tapar buraco calado." },
+      { t: "Sim. Piorou de um jeito que me preocupa.", tone: "y", themes: { dinheiro: "bad" },
+        joke: "Amor que desorganiza a conta não é paixão. É rombo com apelido.",
+        more: "Dinheiro aqui não é moralismo. É ver se a relação pede um preço que você não combinou. inclusive o preço de não poder sair." },
+      { t: "Prefiro não responder.", tone: "g", themes: {},
+        joke: "Respeito. Se a pergunta doeu, anota a dor mesmo assim." }
+    ]},
+  { ch: 3, id: "provar",
+    q: "Você se sente amado por quem é. ou precisa fazer alguma coisa para receber amor?",
+    opts: [
+      { t: "Sinto-me amado por quem sou.", tone: "g", themes: { valor: "good" },
+        joke: "Amor sem audição. Não troca isso por plot twist." },
+      { t: "Às vezes sinto que preciso provar meu valor.", tone: "y", themes: { valor: "warn" },
+        joke: "Provar valor é entrevista de emprego, não namoro.",
+        more: "Se o afeto depende de desempenho, o desempenho nunca acaba. Esse é o truque." },
+      { t: "Sinto que preciso fazer algo para receber amor.", tone: "y", themes: { valor: "bad" },
+        joke: "Você não é fliperama.",
+        more: "Amor com ficha é economia. Economia cansa. Você não precisava ganhar o básico de novo toda semana." },
+      { t: "Não sei responder.", tone: "y", themes: { valor: "warn" },
+        joke: "Se a dúvida existe, a prova já está sendo cobrada." }
+    ]},
+  { ch: 4, id: "gostos",
+    q: "Você ainda sabe quais livros, músicas, séries e filmes gosta sozinho. ou só reconhece o que compartilham?",
+    opts: [
+      { t: "Continuo conhecendo bem os meus gostos.", tone: "g", themes: { identidade: "good" },
+        joke: "O eu intacto dentro do nós. É o jogo." },
+      { t: "Tenho certa dificuldade em separar as preferências.", tone: "y", themes: { identidade: "warn" },
+        joke: "Fusão demais vira desaparecimento. Quem escolhe o filme agora?",
+        more: "Misturar gosto é íntimo. Perder o próprio é outra operação. A diferença aparece no sábado à tarde, sozinho." },
+      { t: "Quase só identifico os gostos que compartilham.", tone: "y", themes: { identidade: "bad" },
+        joke: "Você terceirizou o paladar. Sobrou o casal.",
+        more: "Personalidade compartilhada demais deixa uma pessoa sem mapa quando a relação treme. Vale recuperar uma coisa que é só sua. nesta semana." },
+      { t: "Não sei responder.", tone: "y", themes: { identidade: "warn" },
+        joke: "Cita três coisas que você ama e a pessoa detesta. Se travou, já era." }
+    ]},
+  { ch: 4, id: "investigar",
+    q: "Essa pessoa te instiga a investigar quem você é. ou a provar quem você é?",
+    opts: [
+      { t: "Incentiva minha autodescoberta.", tone: "g", themes: { identidade: "good" },
+        joke: "Te expande. Não te vigia." },
+      { t: "Faz as duas coisas.", tone: "y", themes: { identidade: "warn" },
+        joke: "Uma hora espelho. Outra hora holofote de delegacia.",
+        more: "Provação constante não é profundidade. É um emprego que você não assinou." },
+      { t: "Sinto que preciso provar quem sou.", tone: "y", themes: { identidade: "bad" },
+        joke: "Identidade não é contestação de paternidade.",
+        more: "Se você entra em cada conversa precisando defender o próprio caráter, a relação já escolheu um tribunal como móvel." },
+      { t: "Não sei responder.", tone: "y", themes: { identidade: "warn" },
+        joke: "Provar quem você é já é um trabalho. Relação boa não abre essa vaga." }
+    ]},
+  { ch: 4, id: "familia",
+    q: "Passar tempo com familiares e amigos dessa pessoa te traz principalmente alegria. ou obrigação?",
+    opts: [
+      { t: "Principalmente alegria.", tone: "g", themes: { identidade: "good" },
+        joke: "Rede que acolhe. Não é detalhe." },
+      { t: "Uma mistura de alegria e obrigação.", tone: "g", themes: { identidade: "warn" },
+        joke: "Mistura é normal. Só obrigação com sorriso, não." },
+      { t: "Principalmente obrigação.", tone: "y", themes: { identidade: "bad" },
+        joke: "Serviço comunitário no tempo livre.",
+        more: "Obrigação pontual faz parte. Obrigação como clima te tira de qualquer lugar que deveria ser seu também." },
+      { t: "Não se aplica.", tone: "g", themes: {},
+        joke: "Se não tem gente dela na mesa, às vezes o isolamento já é o recado." }
+    ]},
+  { ch: 4, id: "decidir",
+    q: "Você toma suas decisões a partir de respeito por si. ou do medo de perder essa pessoa?",
+    opts: [
+      { t: "Principalmente do respeito por mim.", tone: "g", themes: { limites: "good" },
+        joke: "Régua interna no lugar. Não empresta ela." },
+      { t: "Das duas coisas.", tone: "y", themes: { limites: "warn" },
+        joke: "Medo com gravata ainda é medo.",
+        more: "Dá para amar e ainda assim decidir sem se anular. Se toda escolha grande nasce do susto de perder, o susto está no comando." },
+      { t: "Principalmente do medo de perder.", tone: "y", themes: { limites: "bad" },
+        joke: "Quem decide no susto aceita qualquer acordo.",
+        more: "Medo de perda assina contrato ruim com letra bonita. Vale olhar o que você já aceitou só para não ver a cadeira vazia." },
+      { t: "Não sei responder.", tone: "y", themes: { limites: "warn" },
+        joke: "Se a decisão só existe quando a pessoa ameaça sair, já sabe a origem." }
+    ]},
+  { ch: 5, id: "emergencia",
+    q: "Você colocaria essa pessoa como seu contato de emergência?",
+    opts: [
+      { t: "Sim, sem hesitar.", tone: "g", themes: { confianca: "good" },
+        joke: "Isso é confiança. O resto é enfeite." },
+      { t: "Talvez.", tone: "y", themes: { confianca: "warn" },
+        joke: "Emergência não aceita talvez.",
+        more: "Contato de emergência é uma pergunta sem poesia: na hora feia, essa pessoa aparece e sabe o que fazer?" },
+      { t: "Não.", tone: "y", themes: { confianca: "bad" },
+        joke: "Você divide a cama com alguém que não colocaria no formulário do hospital.",
+        more: "Não é um teste moral. É um mapa de confiança prática. Se a resposta é não, isso merece espaço. sem discurso de “é porque eu sou independente”." },
+      { t: "Não sei responder.", tone: "y", themes: { confianca: "warn" },
+        joke: "Não saber já é um não com vergonha." }
+    ]},
+  { ch: 5, id: "confiar",
+    q: "Você confiaria nessa pessoa para cuidar de alguém extremamente importante para você. quando você não pudesse supervisionar?",
+    opts: [
+      { t: "Sim.", tone: "g", themes: { confianca: "good" },
+        joke: "Essa pergunta separa crush de caráter." },
+      { t: "Talvez.", tone: "y", themes: { confianca: "warn" },
+        joke: "Talvez, neste caso, é um não que ainda está se vestindo.",
+        more: "Confiança sem supervisão é um critério duro de propósito. Se trava, não force um sim por lealdade." },
+      { t: "Não.", tone: "y", themes: { confianca: "bad" },
+        joke: "Então por que você se entrega inteiro a quem não passaria nesse teste?",
+        more: "A pergunta não é sobre filho. É sobre julgamento, cuidado e previsibilidade quando você não está na sala." },
+      { t: "Não se aplica.", tone: "g", themes: {},
+        joke: "Aplica como metáfora. Caráter não precisa de berço para aparecer." }
+    ]},
+  { ch: 5, id: "intimidade",
+    q: "Se uma pessoa importante para você soubesse como é a intimidade de vocês, ficaria feliz com o seu futuro?",
+    opts: [
+      { t: "Sim.", tone: "g", themes: { confianca: "good" },
+        joke: "Consegue ser vista. Isso importa mais do que parece." },
+      { t: "Talvez.", tone: "y", themes: { confianca: "warn" },
+        joke: "Se precisa esconder o quarto, o quarto já é o problema.",
+        more: "Intimidade que não aguenta testemunha de alguém que te ama costuma esconder mais do que pudor." },
+      { t: "Não.", tone: "y", themes: { confianca: "bad" },
+        joke: "Vergonha de ser visto é um alarme. Não coloca no silencioso.",
+        more: "Pensa em uma pessoa que te quer bem. A cara dela, imaginada, já respondeu metade." },
+      { t: "Não sei responder.", tone: "y", themes: { confianca: "warn" },
+        joke: "A cara da pessoa que te ama já respondeu. Você que desviou o olhar." }
+    ]},
+  { ch: 5, id: "seguranca",
+    q: "Nesta relação, você já sentiu medo, ameaça, isolamento, controle. inclusive financeiro. coerção ou violência?",
+    opts: [
+      { t: "Não.", tone: "g", themes: { seguranca: "good" },
+        joke: "Que continue assim. Essa é a linha que o site não atravessa de brincadeira." },
+      { t: "Não tenho certeza se o que aconteceu entra nisso.", tone: "r", themes: { seguranca: "warn" },
+        joke: "Sem piada agora.",
+        more: "Dúvida neste ponto já merece conversa com alguém de confiança. Você não precisa classificar sozinho o que viveu. e não precisa decidir o futuro da relação nesta tela." },
+      { t: "Sim.", tone: "r", themes: { seguranca: "bad" },
+        joke: "Sem piada agora.",
+        more: "Isso que você marcou pode ser sério. Você não precisa tomar nenhuma decisão neste momento. Vale falar com alguém em quem confie e considerar apoio especializado. Ligue 180 ou 188. Sua segurança não é punchline deste site." },
+      { t: "Prefiro não responder.", tone: "g", themes: {},
+        joke: "Tudo bem. A porta fica aberta. 180 e 188 existem se um dia fizer sentido." }
+    ]},
+  { ch: 5, id: "seamar",
+    q: "Você se ama o suficiente para reconhecer se esta relação te faz bem?",
+    opts: [
+      { t: "Sim.", tone: "g", themes: { limites: "good" },
+        joke: "Então usa a resposta. Não guarda ela na gaveta." },
+      { t: "Estou aprendendo.", tone: "g", themes: { limites: "warn" },
+        joke: "Aprender vale. Desde que aprender não seja adiar para sempre." },
+      { t: "Ainda não.", tone: "y", themes: { limites: "bad" },
+        joke: "Pelo menos foi honesto.",
+        more: "O trabalho, então, não é consertar o outro nesta madrugada. É recuperar régua suficiente para olhar a relação sem se trair." },
+      { t: "Não sei responder.", tone: "y", themes: { limites: "warn" },
+        joke: "Não saber se se ama já é um recado. Começa por aí. não pelo crush." }
+    ]}
+];
+
+const WRITES = [
+  { id: "urgencia", q: "Por que você está tão preocupado em ter certeza de que é, ou será, amado?" },
+  { id: "descobri", q: "O que você descobriu ao responder estas perguntas?" },
+  { id: "preservar", q: "Quais aspectos positivos desta relação você quer preservar?" },
+  { id: "preocupa", q: "O que te preocupa ou precisa mudar?" },
+  { id: "conversa", q: "Que conversa você precisa ter. e com quem?" },
+  { id: "limite", q: "Que limite você precisa estabelecer?" },
+  { id: "apoio", q: "Que apoio você pode buscar?" },
+  { id: "passo", q: "Qual será seu próximo passo. concreto, desta semana?" }
+];
+
+const SYN = [
+  { id: "sinto", q: "Nesta relação, eu me sinto" },
+  { id: "gostaria", q: "Eu gostaria de me sentir" },
+  { id: "corpo", q: "O que meu corpo tem tentado me dizer é" },
+  { id: "ignorar", q: "O que eu não quero mais ignorar é" },
+  { id: "decisao", q: "Uma decisão que respeitaria mais a mim seria" }
+];
+
+const LABELS = {
+  paz: "Paz", admiracao: "Admiração", escolha: "Escolha", potencial: "Realidade × potencial",
+  afeto: "Afeto", reciprocidade: "Reciprocidade", comunicacao: "Comunicação", impacto: "Peso na vida",
+  apego: "Saudade e apego", alivio: "Alívio na ausência", nervoso: "Sistema nervoso", dinheiro: "Dinheiro",
+  valor: "Valor próprio", identidade: "Identidade", limites: "Limites", confianca: "Confiança", seguranca: "Segurança"
+};
+
+const ROASTS = {
+  reciprocidade: "Tem amor. Tem história. Tem carinho. Só aparentemente faltou contratar um segundo adulto para o relacionamento.",
+  alivio: "Você não odeia a pessoa. Odeia o estado em que fica quando está com ela. São coisas diferentes.",
+  potencial: "Você não está namorando alguém. Está namorando uma versão beta que nunca foi lançada.",
+  identidade: "O casal está ótimo. Você que sumiu do elenco.",
+  apego: "Não é lealdade. É recusa em dar baixa no investimento.",
+  valor: "Você está pedindo um laudo de que é amado. Relação boa não exige perícia.",
+  comunicacao: "Você não é médium. E essa vaga não paga extra.",
+  paz: "Tem afeto. Tem história. Tem também um alarme que você vem silenciando com educação.",
+  nervoso: "O corpo entrou no questionário sem ser convidado. Costuma ser o depoimento mais honesto da casa.",
+  confianca: "Tem intimidade. Falta o tipo de confiança que a gente testa fora do quarto.",
+  limites: "A relação pode até ter futuro. A sua régua precisa voltar para as suas mãos primeiro.",
+  escolha: "Não faltou sentimento. Faltou admitir que ficar também é uma decisão. e que você anda terceirizando ela.",
+  impacto: "A vida ficou mais cara. Não em dinheiro. Em paciência.",
+  dinheiro: "O Pix não deveria ser prova de amor. Nem de permanência.",
+  afeto: "Tem desejo. Falta o tipo de toque que não precisa de desculpa.",
+  admiracao: "Difícil construir casa em cima de uma pessoa que você ainda está esperando nascer.",
+  ok: "Provavelmente não é uma bosta. Também não é motivo para desligar o cérebro.",
+  mix: "Tem coisa boa demais para jogar fora. e coisa ruim demais para fingir que não viu."
+};
+
+const BLURB = {
+  reciprocidade: "Em várias respostas, você parece assumir mais responsabilidade pela relação do que a outra pessoa.",
+  alivio: "Você relatou sentir-se melhor, com alguma frequência, quando estão separados.",
+  nervoso: "Apareceu um padrão de desgaste no corpo. sono, ansiedade, energia. que você associa à dinâmica de vocês.",
+  potencial: "A atração parece pendurar mais no que essa pessoa poderia ser do que no que ela é.",
+  identidade: "Em mais de um ponto, o “nós” parece ter comido espaço do “eu”.",
+  apego: "O que te segura pode ser menos escolha e mais medo da ausência.",
+  valor: "O afeto, nas suas marcas, às vezes depende de desempenho.",
+  comunicacao: "Você relata traduzir, adivinhar ou se explicar mais do que deveria ser necessário.",
+  paz: "A relação não está entregando paz com a frequência que uma vida em comum pede.",
+  escolha: "Ficar parece menos decisão e mais inércia.",
+  confianca: "Há intimidade. A confiança prática. a de emergência, a de cuidado. emperrou.",
+  limites: "O medo de perder está pesando nas suas decisões.",
+  impacto: "A vida ficou mais difícil desde que essa relação ocupa o centro.",
+  dinheiro: "O dinheiro entrou na conversa de um jeito que te preocupa.",
+  afeto: "O carinho fora do sexo não está tão disponível quanto você precisaria.",
+  admiracao: "A admiração pelo presente não está firme.",
+  seguranca: "Há um sinal de medo, controle ou violência. Isso não entra em roast."
+};
+
+
+const KEY = "sneub-v3";
+const empty = { i: 0, a: {}, w: {}, syn: {}, anos: "" };
+const COMMENT_TIMEOUT_MS = 8500;
+const COMMENT_CACHE_LIMIT = 64;
+const COMMENT_SAFETY_TEXT = "Sem piada agora. O que você marcou pode ser sério. Isso merece apoio real, não um roast.";
+const commentCache = new Map();
+let commentRequest = null;
+let commentRequestSerial = 0;
+let commentSessionId = null;
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return { ...empty, a: {}, w: {}, syn: {} };
+    const parsed = JSON.parse(raw);
+    return {
+      i: Number(parsed.i) || 0,
+      a: parsed.a && typeof parsed.a === "object" ? parsed.a : {},
+      w: parsed.w && typeof parsed.w === "object" ? parsed.w : {},
+      syn: parsed.syn && typeof parsed.syn === "object" ? parsed.syn : {},
+      anos: typeof parsed.anos === "string" ? parsed.anos : ""
+    };
+  } catch {
+    return { i: 0, a: {}, w: {}, syn: {}, anos: "" };
+  }
+}
+
+const state = loadState();
+const $ = (id) => document.getElementById(id);
+
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) {}
+}
+
+function setChrome(mode, label) {
+  const word = $("wordmark");
+  const step = $("step");
+  if (!word || !step) return;
+  if (mode === "home") {
+    word.hidden = false;
+    word.textContent = "S.N.E.U.B.";
+    step.hidden = true;
+    step.textContent = "";
+  } else {
+    word.hidden = true;
+    step.hidden = false;
+    step.textContent = label;
+  }
+}
+
+function show(id) {
+  document.querySelectorAll(".screen").forEach((s) => {
+    s.classList.remove("on", "grave");
+    s.setAttribute("aria-hidden", s.id === id ? "false" : "true");
+  });
+  $(id).classList.add("on");
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  window.scrollTo({ top: 0, behavior: reduce ? "auto" : "instant" });
+}
+
+function safetyLocked() {
+  const i = state.a.seguranca;
+  if (i == null) return false;
+  const o = Q.find((q) => q.id === "seguranca").opts[i];
+  return o.tone === "r";
+}
+
+function safetyModeAt(index) {
+  return Q.slice(0, index + 1).some((q) => {
+    const answer = state.a[q.id];
+    return answer != null && q.opts[answer] && q.opts[answer].tone === "r";
+  });
+}
+
+function cancelCommentRequest() {
+  if (commentRequest) commentRequest.controller.abort();
+  commentRequest = null;
+}
+
+function commentSession() {
+  if (commentSessionId) return commentSessionId;
+  try {
+    commentSessionId = sessionStorage.getItem("sneub-comment-session");
+    if (!commentSessionId) {
+      commentSessionId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+      sessionStorage.setItem("sneub-comment-session", commentSessionId);
+    }
+  } catch (_) {
+    commentSessionId = "anonymous";
+  }
+  return commentSessionId;
+}
+
+function commentPayload(item, idx) {
+  const index = Q.indexOf(item);
+  const selected = item.opts[idx];
+  return {
+    question: { id: item.id, chapter: item.ch, text: item.q },
+    selected: { index: idx, text: selected.t, tone: selected.tone, themes: selected.themes || {} },
+    previous: Q.slice(0, index).flatMap((q) => {
+      const answer = state.a[q.id];
+      if (answer == null || !q.opts[answer]) return [];
+      const option = q.opts[answer];
+      return [{
+        questionId: q.id,
+        chapter: q.ch,
+        questionText: q.q,
+        optionIndex: answer,
+        optionText: option.t,
+        tone: option.tone,
+        themes: option.themes || {}
+      }];
+    })
+  };
+}
+
+function renderLocalReaction(option, safety = false) {
+  const box = $("react");
+  if (!box) return;
+  box.classList.add("on");
+  box.replaceChildren();
+  const joke = document.createElement("p");
+  joke.className = `joke${safety || option.tone === "r" ? " red" : ""}`;
+  joke.textContent = safety && option.tone !== "r" ? COMMENT_SAFETY_TEXT : option.joke;
+  box.appendChild(joke);
+  if (!safety && option.more) {
+    const more = document.createElement("p");
+    more.className = "more";
+    more.textContent = option.more;
+    box.appendChild(more);
+  }
+}
+
+function renderAgentComment(comment) {
+  const box = $("react");
+  if (!box) return;
+  box.classList.add("on");
+  box.replaceChildren();
+  const joke = document.createElement("p");
+  joke.className = "joke";
+  joke.textContent = comment;
+  box.appendChild(joke);
+}
+
+function validAgentComment(value) {
+  if (!value || typeof value.comment !== "string" || value.kind !== "roast") return null;
+  const comment = value.comment.trim().replace(/\s+/g, " ");
+  if (!comment || comment.length > 280 || /[<>\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(comment)) return null;
+  return comment;
+}
+
+function commentIsCurrent(item, idx, requestId) {
+  return commentRequest && commentRequest.id === requestId &&
+    state.i === Q.indexOf(item) && state.a[item.id] === idx && $("react");
+}
+
+async function requestAgentComment(item, idx) {
+  const index = Q.indexOf(item);
+  if (index < 0 || item.id === "seguranca" || safetyModeAt(index)) return;
+  const payload = commentPayload(item, idx);
+  const cacheKey = JSON.stringify(payload);
+  cancelCommentRequest();
+  if (commentCache.has(cacheKey)) {
+    renderAgentComment(commentCache.get(cacheKey));
+    return;
+  }
+
+  const controller = new AbortController();
+  const requestId = ++commentRequestSerial;
+  commentRequest = { controller, id: requestId };
+  const timeout = setTimeout(() => controller.abort(), COMMENT_TIMEOUT_MS);
+  try {
+    const response = await fetch("/api/comment", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-sneub-session": commentSession()
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    if (!response.ok) return;
+    const comment = validAgentComment(await response.json());
+    if (!comment) return;
+    commentCache.set(cacheKey, comment);
+    if (commentCache.size > COMMENT_CACHE_LIMIT) commentCache.delete(commentCache.keys().next().value);
+    if (commentIsCurrent(item, idx, requestId)) renderAgentComment(comment);
+  } catch (_) {
+    // The local comment is the deliberate fallback for offline, slow, or failed calls.
+  } finally {
+    clearTimeout(timeout);
+    if (commentRequest && commentRequest.id === requestId) commentRequest = null;
+  }
+}
+
+function patterns() {
+  const bag = {};
+  Q.forEach((q) => {
+    const i = state.a[q.id];
+    if (i == null) return;
+    Object.entries(q.opts[i].themes || {}).forEach(([k, v]) => {
+      if (!bag[k]) bag[k] = { good: 0, warn: 0, bad: 0 };
+      bag[k][v]++;
+    });
+  });
+  return Object.entries(bag).map(([k, v]) => {
+    const n = v.good + v.warn + v.bad;
+    const heat = (v.bad * 2 + v.warn) / Math.max(1, n);
+    return { k, ...v, n, heat };
+  }).sort((a, b) => b.heat - a.heat || b.n - a.n);
+}
+
+function roastLine(rows, locked) {
+  if (locked) return "Este card fica em branco de propósito. Segurança não vira meme.";
+  if (!rows.length) return ROASTS.ok;
+  const top = rows[0];
+  if (top.heat < 0.3) return ROASTS.ok;
+  return ROASTS[top.k] || ROASTS.mix;
+}
+
+function renderHome() {
+  setChrome("home");
+  $("home").innerHTML = `
+    <p class="tiny" style="margin-top:22px">Este site não conhece seu namorado.<br>
+    <strong style="color:var(--ink);font-family:'Archivo Black',sans-serif;text-transform:uppercase;letter-spacing:-.02em">Você, infelizmente, conhece.</strong></p>
+    <h1 class="poster">Seu<br>namoro<br>é uma<br><em>bosta?</em></h1>
+    <p class="aside">5 minutos. Algumas perguntas inconvenientes. No final, talvez o problema seja seu namoro. Talvez seja você. Talvez sejam os dois.</p>
+    <div class="whispers">
+      <span>[ provavelmente não ]</span>
+      <span>[ mas vamos descobrir ]</span>
+    </div>
+    <button class="cta hot" id="go" type="button" style="margin-top:36px">Descobrir a desgraça</button>
+    <p class="tiny">Sem cadastro. Sem mandar mensagem para o seu ex. Sem diagnóstico de TikTok.</p>
+    <p class="footer-dis">Isto não é avaliação clínica e não substitui apoio profissional. As respostas ficam só neste aparelho.</p>
+  `;
+  show("home");
+  $("go").onclick = renderQ;
+  $("go").focus();
+}
+
+function pickOption(item, idx) {
+  state.a[item.id] = idx;
+  save();
+  const radios = $("q").querySelectorAll('[role="radio"]');
+  radios.forEach((b, n) => b.setAttribute("aria-checked", n === idx ? "true" : "false"));
+  const safety = safetyModeAt(Q.indexOf(item));
+  cancelCommentRequest();
+  renderLocalReaction(item.opts[idx], safety);
+  if (item.id !== "seguranca" && !safety) requestAgentComment(item, idx);
+  const next = $("next");
+  next.disabled = false;
+}
+
+function renderQ() {
+  const i = state.i;
+  if (i >= Q.length) return renderWrites();
+  const item = Q[i];
+  const picked = state.a[item.id];
+  const opt = picked != null ? item.opts[picked] : null;
+  const n = String(i + 1).padStart(2, "0");
+  const total = String(Q.length).padStart(2, "0");
+  const grave = item.ch === 5;
+  setChrome("step", n + " / " + total);
+
+  $("q").innerHTML = `
+    <p class="sr-only" id="qstatus">Pergunta ${i + 1} de ${Q.length}. ${CHAPTERS[item.ch]}</p>
+    <div class="count"><b>${n}</b> / ${total}</div>
+    <div class="chap"><span>Cap. ${item.ch}</span> ${CHAPTERS[item.ch].replace(/^Capítulo \d+\. /, "")}</div>
+    <h1 class="q" id="question" tabindex="-1">${item.q}</h1>
+    <div class="opts" id="opts" role="radiogroup" aria-labelledby="question"></div>
+    <div class="react ${opt ? "on" : ""}" id="react" aria-live="polite"></div>
+    <div class="nav">
+      <button class="cta" id="next" type="button" ${picked == null ? "disabled" : ""}>${i === Q.length - 1 ? "Escrever o resto" : "Seguir"}</button>
+      <button class="cta line" id="back" type="button">${i === 0 ? "Capa" : "Voltar"}</button>
+    </div>
+  `;
+  const group = $("opts");
+  item.opts.forEach((o, idx) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "opt";
+    btn.setAttribute("role", "radio");
+    btn.setAttribute("aria-checked", picked === idx ? "true" : "false");
+    btn.dataset.i = String(idx);
+    const mark = document.createElement("span");
+    mark.className = "mark";
+    mark.setAttribute("aria-hidden", "true");
+    const txt = document.createElement("span");
+    txt.textContent = o.t;
+    btn.append(mark, txt);
+    btn.addEventListener("click", () => pickOption(item, idx));
+    group.appendChild(btn);
+  });
+  group.addEventListener("keydown", (e) => {
+    const keys = ["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft"];
+    if (!keys.includes(e.key)) return;
+    e.preventDefault();
+    const radios = [...group.querySelectorAll('[role="radio"]')];
+    const cur = radios.findIndex((r) => r.getAttribute("aria-checked") === "true");
+    const start = cur < 0 ? 0 : cur;
+    const dir = (e.key === "ArrowDown" || e.key === "ArrowRight") ? 1 : -1;
+    const next = (start + dir + radios.length) % radios.length;
+    pickOption(item, next);
+    radios[next].focus();
+  });
+
+  show("q");
+  if (grave) $("q").classList.add("grave");
+  if (opt) {
+    const safety = safetyModeAt(i);
+    renderLocalReaction(opt, safety);
+    if (item.id !== "seguranca" && !safety) requestAgentComment(item, picked);
+  }
+  $("question").focus({ preventScroll: true });
+
+  $("next").onclick = () => {
+    if (state.a[item.id] == null) return;
+    cancelCommentRequest();
+    state.i = i + 1;
+    save();
+    if (state.i >= Q.length) renderWrites();
+    else renderQ();
+  };
+  $("back").onclick = () => {
+    if (i === 0) return renderHome();
+    cancelCommentRequest();
+    state.i = i - 1;
+    save();
+    renderQ();
+  };
+}
+
+function renderWrites() {
+  setChrome("step", "caderno");
+  $("writes").innerHTML = `
+    <div class="count">depois das opções</div>
+    <div class="chap">A parte que o botão não cobre</div>
+    <h1 class="q" id="question" tabindex="-1" style="max-width:16ch">Escreve sem pensar demais.</h1>
+    <div class="open" id="openbox" style="margin-top:22px"></div>
+    <button class="cta" id="toGate" type="button" style="margin-top:28px">Ver o que apareceu</button>
+    <button class="cta line" id="backQ" type="button">Voltar à última pergunta</button>
+  `;
+  const box = $("openbox");
+  WRITES.forEach((w) => {
+    const lab = document.createElement("label");
+    lab.setAttribute("for", "w-" + w.id);
+    lab.textContent = w.q;
+    const ta = document.createElement("textarea");
+    ta.id = "w-" + w.id;
+    ta.value = state.w[w.id] || "";
+    ta.addEventListener("input", () => { state.w[w.id] = ta.value; save(); });
+    box.append(lab, ta);
+  });
+  const synTitle = document.createElement("div");
+  synTitle.className = "chap";
+  synTitle.style.marginTop = "28px";
+  synTitle.textContent = "Síntese";
+  box.append(synTitle);
+  SYN.forEach((s) => {
+    const lab = document.createElement("label");
+    lab.setAttribute("for", "s-" + s.id);
+    lab.textContent = s.q;
+    const inp = document.createElement("input");
+    inp.className = "line";
+    inp.id = "s-" + s.id;
+    inp.value = state.syn[s.id] || "";
+    inp.addEventListener("input", () => { state.syn[s.id] = inp.value; save(); });
+    box.append(lab, inp);
+  });
+  show("writes");
+  $("question").focus({ preventScroll: true });
+  $("toGate").onclick = renderGate;
+  $("backQ").onclick = () => { state.i = Q.length - 1; save(); renderQ(); };
+}
+
+function renderGate() {
+  setChrome("step", "antes");
+  $("gate").innerHTML = `
+    <div class="count">antes do resultado</div>
+    <h1 class="q" id="question" tabindex="-1" style="max-width:16ch">Isto não é um diagnóstico.</h1>
+    <p class="aside">Nenhuma porcentagem. Nenhum laudo. Só padrões que apareceram nas suas respostas, e uma frase para levar, se quiser.</p>
+    <p class="aside" style="margin-top:18px">Se o que você descreveu envolve medo, ameaça, controle, isolamento, coerção ou violência, ignore o tom do site. Isso pode ser sério. <a href="tel:180">180</a> e <a href="tel:188">188</a> existem.</p>
+    <button class="cta hot" id="see" type="button" style="margin-top:auto">Mostrar mesmo assim</button>
+  `;
+  show("gate");
+  $("question").focus({ preventScroll: true });
+  $("see").onclick = renderOut;
+}
+
+function renderOut() {
+  const rows = patterns();
+  const locked = safetyLocked();
+  const working = rows.filter((r) => r.good && r.heat < 0.35).sort((a, b) => b.good - a.good).slice(0, 3);
+  const yellow = rows.filter((r) => r.heat >= 0.35 && r.heat < 0.85);
+  const reds = rows.filter((r) => r.heat >= 0.85 || (r.k === "seguranca" && r.bad));
+  const attention = [...reds, ...yellow].filter((v, i, arr) => arr.findIndex((x) => x.k === v.k) === i).slice(0, 4);
+  const answered = Object.keys(state.a).length;
+  const line = roastLine(rows, locked);
+  setChrome("step", "resultado");
+
+  $("out").innerHTML = `
+    <div class="count">${answered} perguntas fechadas</div>
+    <h2 class="res" id="question" tabindex="-1">${locked ? "Antes de qualquer roast." : "Então… temos coisas para conversar."}</h2>
+    <p class="lead">${locked
+      ? "O padrão que mais importa agora não é falta de amor. É segurança. O resto pode esperar."
+      : "Você respondeu " + answered + " perguntas. O padrão que mais apareceu não foi falta de amor. Foi desgaste, ou a recusa em nomear o desgaste."}</p>
+    ${working.length ? `
+      <div class="block">
+        <div class="k">O que parece estar funcionando</div>
+        ${working.map((r) => `<h3>${LABELS[r.k]}</h3><p>Você marcou, com alguma consistência, sinais de ${LABELS[r.k].toLowerCase()} que ainda estão de pé.</p>`).join("")}
+      </div>` : ""}
+    ${attention.length ? attention.map((r) => `
+      <div class="block">
+        <div class="k">${r.heat >= 0.85 || (r.k === "seguranca" && r.bad) ? "O que merece sua atenção" : "Onde acendeu uma luz amarela"}</div>
+        <h3>${LABELS[r.k]}</h3>
+        <p>${BLURB[r.k] || "Este tema voltou com uma cor menos confortável do que os outros."}</p>
+      </div>`).join("") : `
+      <div class="block">
+        <div class="k">Leitura geral</div>
+        <h3>Nada gritou</h3>
+        <p>Isso não significa perfeição. Significa que, neste conjunto, não surgiu um padrão gritante de desgaste. A pergunta de três anos, abaixo, ainda vale.</p>
+      </div>`}
+    <div class="block">
+      <div class="k">A pergunta que ficou</div>
+      <h3 id="anos-label">Se nada nessa relação mudasse pelos próximos três anos, você ainda escolheria ficar?</h3>
+      <label class="tiny" for="anos" style="display:block;margin:10px 0 6px">Escreva sem pensar demais. Só neste aparelho.</label>
+      <textarea id="anos" aria-labelledby="anos-label"></textarea>
+    </div>
+    <div class="card">
+      <div class="tm">Diagnóstico absolutamente não científico™</div>
+      <p id="roastcard"></p>
+    </div>
+    <button class="cta" id="copy" type="button">Compartilhar meu roast</button>
+    <p class="tiny">O card não leva suas respostas. Só a frase. O resto fica aqui.</p>
+    <div class="warnbox">
+      Antes de perguntar “será que essa pessoa me ama?”, pergunta: “eu me amo o suficiente para reconhecer se esta relação me faz bem?”<br><br>
+      Medo, ameaça, controle, violência, coerção: procura gente de confiança e serviço especializado.
+      <a href="tel:180">180</a> · <a href="tel:188">188</a>. Sua segurança vem primeiro.
+    </div>
+    <button class="cta line" id="again" type="button" style="margin-top:18px">Rever perguntas</button>
+  `;
+  $("roastcard").textContent = line;
+  $("anos").value = state.anos || "";
+  show("out");
+  if (locked) $("out").classList.add("grave");
+  $("question").focus({ preventScroll: true });
+  $("anos").oninput = (e) => { state.anos = e.target.value; save(); };
+  $("copy").onclick = async () => {
+    const txt = "SEU NAMORO É UMA BOSTA?\n\nDiagnóstico absolutamente não científico™\n“" + line + "”\n\nsneub";
+    try {
+      await navigator.clipboard.writeText(txt);
+      $("copy").textContent = "Copiado. Cola onde quiser.";
+    } catch {
+      const range = document.createRange();
+      range.selectNodeContents($("roastcard"));
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      $("copy").textContent = "Texto selecionado. Copia aí.";
+    }
+  };
+  $("again").onclick = () => { state.i = 0; save(); renderQ(); };
+}
+
+$("wipe").onclick = () => {
+  if (confirm("Apagar tudo o que você respondeu neste aparelho?")) {
+    try { localStorage.removeItem(KEY); } catch (_) {}
+    location.reload();
+  }
+};
+
+renderHome();
