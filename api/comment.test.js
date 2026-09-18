@@ -55,10 +55,10 @@ test("returns a structured model comment without sending free-text fields", asyn
   assert.doesNotMatch(sent.messages[1].content, /urgencia|syn|anos/);
 });
 
-test("rejects malformed payloads before calling the provider", async () => {
+test("rejects custom-answer content before calling the comment provider", async () => {
   let calls = 0;
   const res = response();
-  await handleComment(request({ ...payload(), w: { private: "text" } }), res, {
+  await handleComment(request({ ...payload(), c: { paz: "texto livre privado" } }), res, {
     env: { OPENAI_API_KEY: "test-key", SNEUB_COMMENT_MODEL: "test-model" },
     fetchImpl: async () => { calls += 1; return providerResponse({}); }
   });

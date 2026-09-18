@@ -377,7 +377,7 @@ const Q = [
       { t: "Não sei responder.", tone: "y", themes: { confianca: "warn" },
         joke: "A cara da pessoa que te ama já respondeu. Você que desviou o olhar." }
     ]},
-  { ch: 5, id: "seguranca",
+  { ch: 5, id: "seguranca", allowCustom: false,
     q: "Nesta relação, você já sentiu medo, ameaça, isolamento, controle. inclusive financeiro. coerção ou violência?",
     opts: [
       { t: "Não.", tone: "g", themes: { seguranca: "good" },
@@ -475,7 +475,10 @@ const BLURB = {
 
 
 const KEY = "sneub-v3";
-const empty = { i: 0, a: {}, w: {}, syn: {}, anos: "" };
+const CUSTOM_ANSWER = "__custom__";
+const CUSTOM_ANSWER_MAX_CHARS = 500;
+const JEV_TIMEOUT_MS = 5000;
+const empty = { i: 0, a: {}, c: {}, w: {}, syn: {}, anos: "" };
 const COMMENT_TIMEOUT_MS = 8500;
 const COMMENT_CACHE_LIMIT = 64;
 const COMMENT_SAFETY_TEXT = "Sem piada agora. O que você marcou pode ser sério. Isso merece apoio real, não um roast.";
@@ -487,17 +490,18 @@ let commentSessionId = null;
 function loadState() {
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return { ...empty, a: {}, w: {}, syn: {} };
+    if (!raw) return { ...empty, a: {}, c: {}, w: {}, syn: {} };
     const parsed = JSON.parse(raw);
     return {
       i: Number(parsed.i) || 0,
       a: parsed.a && typeof parsed.a === "object" ? parsed.a : {},
+      c: parsed.c && typeof parsed.c === "object" ? parsed.c : {},
       w: parsed.w && typeof parsed.w === "object" ? parsed.w : {},
       syn: parsed.syn && typeof parsed.syn === "object" ? parsed.syn : {},
       anos: typeof parsed.anos === "string" ? parsed.anos : ""
     };
   } catch {
-    return { i: 0, a: {}, w: {}, syn: {}, anos: "" };
+    return { i: 0, a: {}, c: {}, w: {}, syn: {}, anos: "" };
   }
 }
 
@@ -538,7 +542,22 @@ function safetyLocked() {
   const i = state.a.seguranca;
   if (i == null) return false;
   const o = Q.find((q) => q.id === "seguranca").opts[i];
-  return o.tone === "r";
+  return Boolean(o && o.tone === "r");
+}
+
+function allowsCustomAnswer(q) {
+  return q.allowCustom !== false;
+}
+
+function questionThemes(q) {
+  return [...new Set(q.opts.flatMap((option) => Object.keys(option.themes || {})))];
+}
+
+function hasValidCustomAnswer(q) {
+  return state.a[q.id] === CUSTOM_ANSWER &&
+    typeof state.c[q.id] === "string" &&
+    state.c[q.id].trim().length > 0 &&
+    state.c[q.id].length <= CUSTOM_ANSWER_MAX_CHARS;
 }
 
 function safetyModeAt(index) {
@@ -618,6 +637,17 @@ function renderAgentComment(comment) {
   box.appendChild(joke);
 }
 
+function renderCustomReaction() {
+  const box = $("react");
+  if (!box) return;
+  box.classList.add("on");
+  box.replaceChildren();
+  const joke = document.createElement("p");
+  joke.className = "joke";
+  joke.textContent = "Tá. Então escreve do seu jeito.";
+  box.appendChild(joke);
+}
+
 function validAgentComment(value) {
   if (!value || typeof value.comment !== "string" || value.kind !== "roast") return null;
   const comment = value.comment.trim().replace(/\s+/g, " ");
@@ -669,16 +699,33 @@ async function requestAgentComment(item, idx) {
   }
 }
 
-function patterns() {
+function mergeCustomSignals(bag, customAnalysis) {
+  if (!customAnalysis || typeof customAnalysis !== "object") return bag;
+  Q.forEach((q) => {
+    if (!hasValidCustomAnswer(q)) return;
+    const result = customAnalysis[q.id];
+    if (!result || !["good", "warn", "bad"].includes(result.state)) return;
+    questionThemes(q).forEach((theme) => {
+      if (!bag[theme]) bag[theme] = { good: 0, warn: 0, bad: 0 };
+      bag[theme][result.state]++;
+    });
+  });
+  return bag;
+}
+
+function patterns(customAnalysis) {
   const bag = {};
   Q.forEach((q) => {
     const i = state.a[q.id];
     if (i == null) return;
-    Object.entries(q.opts[i].themes || {}).forEach(([k, v]) => {
+    const option = q.opts[i];
+    if (!option) return;
+    Object.entries(option.themes || {}).forEach(([k, v]) => {
       if (!bag[k]) bag[k] = { good: 0, warn: 0, bad: 0 };
       bag[k][v]++;
     });
   });
+  mergeCustomSignals(bag, customAnalysis);
   return Object.entries(bag).map(([k, v]) => {
     const n = v.good + v.warn + v.bad;
     const heat = (v.bad * 2 + v.warn) / Math.max(1, n);
@@ -707,18 +754,39 @@ function renderHome() {
     </div>
     <button class="cta hot" id="go" type="button" style="margin-top:36px">Descobrir a desgraça</button>
     <p class="tiny">Sem cadastro. Sem mandar mensagem para o seu ex. Sem diagnóstico de TikTok.</p>
-    <p class="footer-dis">Isto não é avaliação clínica e não substitui apoio profissional. As respostas ficam só neste aparelho.</p>
+    <p class="footer-dis">Isto não é avaliação clínica e não substitui apoio profissional. Algumas respostas fechadas podem ser processadas para gerar comentários. Respostas escritas só são enviadas se você escolher usar a análise com IA.</p>
   `;
   show("home");
   $("go").onclick = renderQ;
   $("go").focus();
 }
 
+function setQuestionSelection(value) {
+  const expected = String(value);
+  $("q").querySelectorAll('[role="radio"]').forEach((button) => {
+    button.setAttribute("aria-checked", button.dataset.answer === expected ? "true" : "false");
+  });
+}
+
+function setCustomEditorActive(item, active, focus = false) {
+  const box = $("custombox");
+  const textarea = $("custom-answer");
+  if (!box || !textarea) return;
+  box.hidden = !active;
+  textarea.disabled = !active;
+  if (active) {
+    textarea.value = state.c[item.id] || "";
+    const count = $("custom-count");
+    if (count) count.textContent = `${textarea.value.length} / ${CUSTOM_ANSWER_MAX_CHARS}`;
+    if (focus) textarea.focus();
+  }
+}
+
 function pickOption(item, idx) {
   state.a[item.id] = idx;
   save();
-  const radios = $("q").querySelectorAll('[role="radio"]');
-  radios.forEach((b, n) => b.setAttribute("aria-checked", n === idx ? "true" : "false"));
+  setQuestionSelection(idx);
+  setCustomEditorActive(item, false);
   const safety = safetyModeAt(Q.indexOf(item));
   cancelCommentRequest();
   renderLocalReaction(item.opts[idx], safety);
@@ -727,12 +795,24 @@ function pickOption(item, idx) {
   next.disabled = false;
 }
 
+function pickCustomAnswer(item, focus = true) {
+  if (!allowsCustomAnswer(item)) return;
+  cancelCommentRequest();
+  state.a[item.id] = CUSTOM_ANSWER;
+  save();
+  setQuestionSelection(CUSTOM_ANSWER);
+  setCustomEditorActive(item, true, focus);
+  renderCustomReaction();
+  $("next").disabled = !hasValidCustomAnswer(item);
+}
+
 function renderQ() {
   const i = state.i;
   if (i >= Q.length) return renderWrites();
   const item = Q[i];
   const picked = state.a[item.id];
-  const opt = picked != null ? item.opts[picked] : null;
+  const customPicked = picked === CUSTOM_ANSWER && allowsCustomAnswer(item);
+  const opt = Number.isInteger(picked) ? item.opts[picked] : null;
   const n = String(i + 1).padStart(2, "0");
   const total = String(Q.length).padStart(2, "0");
   const grave = item.ch === 5;
@@ -744,9 +824,18 @@ function renderQ() {
     <div class="chap"><span>Cap. ${item.ch}</span> ${CHAPTERS[item.ch].replace(/^Capítulo \d+\. /, "")}</div>
     <h1 class="q" id="question" tabindex="-1">${item.q}</h1>
     <div class="opts" id="opts" role="radiogroup" aria-labelledby="question"></div>
-    <div class="react ${opt ? "on" : ""}" id="react" aria-live="polite"></div>
+    ${allowsCustomAnswer(item) ? `
+      <div class="custom-answer" id="custombox" hidden>
+        <label for="custom-answer">Escreve do seu jeito.</label>
+        <textarea id="custom-answer" maxlength="${CUSTOM_ANSWER_MAX_CHARS}" required aria-describedby="custom-answer-help custom-count"></textarea>
+        <div class="custom-meta">
+          <span id="custom-answer-help">Fica neste aparelho até você autorizar a análise.</span>
+          <span id="custom-count">0 / ${CUSTOM_ANSWER_MAX_CHARS}</span>
+        </div>
+      </div>` : ""}
+    <div class="react ${opt || customPicked ? "on" : ""}" id="react" aria-live="polite"></div>
     <div class="nav">
-      <button class="cta" id="next" type="button" ${picked == null ? "disabled" : ""}>${i === Q.length - 1 ? "Escrever o resto" : "Seguir"}</button>
+      <button class="cta" id="next" type="button" ${picked == null || (customPicked && !hasValidCustomAnswer(item)) ? "disabled" : ""}>${i === Q.length - 1 ? "Escrever o resto" : "Seguir"}</button>
       <button class="cta line" id="back" type="button">${i === 0 ? "Capa" : "Voltar"}</button>
     </div>
   `;
@@ -757,7 +846,7 @@ function renderQ() {
     btn.className = "opt";
     btn.setAttribute("role", "radio");
     btn.setAttribute("aria-checked", picked === idx ? "true" : "false");
-    btn.dataset.i = String(idx);
+    btn.dataset.answer = String(idx);
     const mark = document.createElement("span");
     mark.className = "mark";
     mark.setAttribute("aria-hidden", "true");
@@ -767,6 +856,32 @@ function renderQ() {
     btn.addEventListener("click", () => pickOption(item, idx));
     group.appendChild(btn);
   });
+  if (allowsCustomAnswer(item)) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "opt custom-opt";
+    btn.setAttribute("role", "radio");
+    btn.setAttribute("aria-checked", customPicked ? "true" : "false");
+    btn.dataset.answer = CUSTOM_ANSWER;
+    const mark = document.createElement("span");
+    mark.className = "mark";
+    mark.setAttribute("aria-hidden", "true");
+    const txt = document.createElement("span");
+    txt.textContent = "Outra resposta…";
+    btn.append(mark, txt);
+    btn.addEventListener("click", () => pickCustomAnswer(item));
+    group.appendChild(btn);
+
+    const textarea = $("custom-answer");
+    textarea.value = state.c[item.id] || "";
+    textarea.addEventListener("input", () => {
+      state.c[item.id] = textarea.value;
+      save();
+      $("next").disabled = !hasValidCustomAnswer(item);
+      $("custom-count").textContent = `${textarea.value.length} / ${CUSTOM_ANSWER_MAX_CHARS}`;
+    });
+    setCustomEditorActive(item, customPicked);
+  }
   group.addEventListener("keydown", (e) => {
     const keys = ["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft"];
     if (!keys.includes(e.key)) return;
@@ -776,13 +891,16 @@ function renderQ() {
     const start = cur < 0 ? 0 : cur;
     const dir = (e.key === "ArrowDown" || e.key === "ArrowRight") ? 1 : -1;
     const next = (start + dir + radios.length) % radios.length;
-    pickOption(item, next);
+    radios[next].click();
     radios[next].focus();
   });
 
   show("q");
   if (grave) $("q").classList.add("grave");
-  if (opt) {
+  if (customPicked) {
+    cancelCommentRequest();
+    renderCustomReaction();
+  } else if (opt) {
     const safety = safetyModeAt(i);
     renderLocalReaction(opt, safety);
     if (item.id !== "seguranca" && !safety) requestAgentComment(item, picked);
@@ -791,6 +909,7 @@ function renderQ() {
 
   $("next").onclick = () => {
     if (state.a[item.id] == null) return;
+    if (state.a[item.id] === CUSTOM_ANSWER && !hasValidCustomAnswer(item)) return;
     cancelCommentRequest();
     state.i = i + 1;
     save();
@@ -849,34 +968,139 @@ function renderWrites() {
   $("backQ").onclick = () => { state.i = Q.length - 1; save(); renderQ(); };
 }
 
+function collectCustomAnswers() {
+  return Q.flatMap((q) => {
+    if (!allowsCustomAnswer(q) || !hasValidCustomAnswer(q)) return [];
+    return [{
+      id: q.id,
+      chapter: q.ch,
+      question: q.q,
+      text: state.c[q.id].trim(),
+      themes: questionThemes(q)
+    }];
+  });
+}
+
+function validAnalysisProbabilities(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const keys = Object.keys(value).sort();
+  if (keys.join(",") !== "bad,good,unclear,warn") return false;
+  const probabilities = keys.map((key) => value[key]);
+  return probabilities.every((number) => Number.isFinite(number) && number >= 0 && number <= 1) &&
+    Math.abs(probabilities.reduce((sum, number) => sum + number, 0) - 1) <= 0.001;
+}
+
+function validCustomAnalysis(value, answers) {
+  if (!value || typeof value !== "object" || Array.isArray(value) ||
+      Object.keys(value).some((key) => key !== "analysis") ||
+      !value.analysis || typeof value.analysis !== "object" || Array.isArray(value.analysis)) return null;
+  const expectedIds = answers.map((answer) => answer.id).sort();
+  if (Object.keys(value.analysis).sort().join(",") !== expectedIds.join(",")) return null;
+  for (const id of expectedIds) {
+    const result = value.analysis[id];
+    if (!result || typeof result !== "object" || Array.isArray(result) ||
+        Object.keys(result).sort().join(",") !== "confidence,probabilities,state" ||
+        !["good", "warn", "bad", "unclear"].includes(result.state) ||
+        !Number.isFinite(result.confidence) || result.confidence < 0 || result.confidence > 1 ||
+        !validAnalysisProbabilities(result.probabilities)) return null;
+  }
+  return value.analysis;
+}
+
+async function requestCustomAnalysis(answers) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), JEV_TIMEOUT_MS);
+  try {
+    const response = await fetch("/api/analyze", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-sneub-session": commentSession()
+      },
+      body: JSON.stringify({ answers }),
+      signal: controller.signal
+    });
+    if (!response.ok) throw new Error("analysis_failed");
+    const analysis = validCustomAnalysis(await response.json(), answers);
+    if (!analysis) throw new Error("invalid_analysis");
+    return analysis;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function renderAnalysisLoading() {
+  setChrome("step", "lendo");
+  $("gate").innerHTML = `
+    <div class="count">análise autorizada</div>
+    <h1 class="q" id="question" tabindex="-1">Lendo o que você escreveu…</h1>
+    <p class="aside">Só as respostas marcadas como “Outra resposta” foram enviadas. Se o serviço falhar, o resultado local aparece mesmo assim.</p>
+  `;
+  show("gate");
+  $("question").focus({ preventScroll: true });
+}
+
+async function analyzeCustomAnswers() {
+  if (safetyLocked()) {
+    renderOut();
+    return;
+  }
+  const answers = collectCustomAnswers();
+  if (!answers.length) {
+    renderOut();
+    return;
+  }
+  renderAnalysisLoading();
+  try {
+    const analysis = await requestCustomAnalysis(answers);
+    renderOut(analysis);
+  } catch (_) {
+    renderOut(null, "Não consegui interpretar as respostas escritas. Este resultado considera apenas as alternativas marcadas.");
+  }
+}
+
 function renderGate() {
+  const customAnswers = collectCustomAnswers();
+  const canAnalyze = customAnswers.length > 0 && !safetyLocked();
   setChrome("step", "antes");
   $("gate").innerHTML = `
     <div class="count">antes do resultado</div>
     <h1 class="q" id="question" tabindex="-1" style="max-width:16ch">Isto não é um diagnóstico.</h1>
     <p class="aside">Nenhuma porcentagem. Nenhum laudo. Só padrões que apareceram nas suas respostas, e uma frase para levar, se quiser.</p>
     <p class="aside" style="margin-top:18px">Se o que você descreveu envolve medo, ameaça, controle, isolamento, coerção ou violência, ignore o tom do site. Isso pode ser sério. <a href="tel:180">180</a> e <a href="tel:188">188</a> existem.</p>
-    <button class="cta hot" id="see" type="button" style="margin-top:auto">Mostrar mesmo assim</button>
+    ${canAnalyze ? `
+      <div class="consent">
+        <p>Para interpretar o que você escreveu, o SNEUB precisa enviar essas respostas ao serviço de IA. As outras anotações continuam neste aparelho.</p>
+        <button class="cta hot" id="analyze" type="button">Analisar minhas respostas escritas</button>
+        <button class="cta line" id="without" type="button">Continuar sem enviar</button>
+      </div>` : `
+      <button class="cta hot" id="see" type="button" style="margin-top:auto">Mostrar mesmo assim</button>`}
   `;
   show("gate");
   $("question").focus({ preventScroll: true });
-  $("see").onclick = renderOut;
+  if (canAnalyze) {
+    $("analyze").onclick = analyzeCustomAnswers;
+    $("without").onclick = () => renderOut();
+  } else {
+    $("see").onclick = () => renderOut();
+  }
 }
 
-function renderOut() {
-  const rows = patterns();
+function renderOut(customAnalysis = null, analysisWarning = "") {
+  const rows = patterns(customAnalysis);
   const locked = safetyLocked();
   const working = rows.filter((r) => r.good && r.heat < 0.35).sort((a, b) => b.good - a.good).slice(0, 3);
   const yellow = rows.filter((r) => r.heat >= 0.35 && r.heat < 0.85);
   const reds = rows.filter((r) => r.heat >= 0.85 || (r.k === "seguranca" && r.bad));
   const attention = [...reds, ...yellow].filter((v, i, arr) => arr.findIndex((x) => x.k === v.k) === i).slice(0, 4);
-  const answered = Object.keys(state.a).length;
+  const answered = Q.filter((q) => state.a[q.id] != null).length;
   const line = roastLine(rows, locked);
   setChrome("step", "resultado");
 
   $("out").innerHTML = `
-    <div class="count">${answered} perguntas fechadas</div>
+    <div class="count">${answered} perguntas respondidas</div>
     <h2 class="res" id="question" tabindex="-1">${locked ? "Antes de qualquer roast." : "Então… temos coisas para conversar."}</h2>
+    ${analysisWarning ? `<p class="analysis-note" role="status">${analysisWarning}</p>` : ""}
     <p class="lead">${locked
       ? "O padrão que mais importa agora não é falta de amor. É segurança. O resto pode esperar."
       : "Você respondeu " + answered + " perguntas. O padrão que mais apareceu não foi falta de amor. Foi desgaste, ou a recusa em nomear o desgaste."}</p>
