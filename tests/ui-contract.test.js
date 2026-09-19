@@ -64,3 +64,14 @@ test("AI comment appends under the local reaction without replacing it", () => {
   assert.match(app, /if \(commentIsCurrent\(item, idx, requestId\)\) renderAgentComment\(comment\)/);
   assert.match(app, /cancelCommentRequest\(\)/);
 });
+
+
+test("free-text persistence coalesces synchronous localStorage writes", () => {
+  assert.match(app, /let saveTimer = null/);
+  assert.match(app, /function scheduleSave\(\)[\s\S]*setTimeout\([\s\S]*200\)/);
+  assert.match(app, /state\.c\[item\.id\] = textarea\.value;\s*scheduleSave\(\)/);
+  assert.match(app, /state\.w\[write\.id\] = ta\.value; scheduleSave\(\)/);
+  assert.match(app, /state\.syn\[synthesis\.id\] = inp\.value; scheduleSave\(\)/);
+  assert.match(app, /state\.anos = e\.target\.value; scheduleSave\(\)/);
+  assert.match(app, /window\.addEventListener\("pagehide"[\s\S]*if \(saveTimer\) save\(\)/);
+});
