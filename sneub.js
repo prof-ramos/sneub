@@ -607,10 +607,26 @@ function commentPayload(item, idx) {
   return buildCommentPayload(Q, state, item, idx);
 }
 
+function setReactBusy(busy) {
+  const box = $("react");
+  if (!box) return;
+  if (busy) box.setAttribute("aria-busy", "true");
+  else box.removeAttribute("aria-busy");
+}
+
+function renderCommentPending() {
+  const box = $("react");
+  if (!box) return;
+  box.classList.add("on");
+  setReactBusy(true);
+  box.replaceChildren();
+}
+
 function renderLocalReaction(option, safety = false) {
   const box = $("react");
   if (!box) return;
   box.classList.add("on");
+  setReactBusy(false);
   box.replaceChildren();
   const joke = document.createElement("p");
   joke.className = `joke${safety || option.tone === "r" ? " red" : ""}`;
@@ -628,6 +644,7 @@ function renderAgentComment(comment) {
   const box = $("react");
   if (!box) return;
   box.classList.add("on");
+  setReactBusy(false);
   box.replaceChildren();
   const joke = document.createElement("p");
   joke.className = "joke";
@@ -639,6 +656,7 @@ function renderCustomReaction() {
   const box = $("react");
   if (!box) return;
   box.classList.add("on");
+  setReactBusy(false);
   box.replaceChildren();
   const joke = document.createElement("p");
   joke.className = "joke";
@@ -661,6 +679,8 @@ function commentIsCurrent(item, idx, requestId) {
 async function requestAgentComment(item, idx) {
   const index = Q.indexOf(item);
   if (index < 0 || item.id === "seguranca" || safetyModeAt(index)) return;
+  const option = item.opts[idx];
+  const safety = safetyModeAt(index);
   const payload = commentPayload(item, idx);
   const cacheKey = JSON.stringify(payload);
   cancelCommentRequest();
@@ -668,6 +688,10 @@ async function requestAgentComment(item, idx) {
     renderAgentComment(commentCache.get(cacheKey));
     return;
   }
+
+  // Keep the reaction box empty/busy until one final comment is ready.
+  // Showing the local joke and then swapping to the AI roast mid-read feels broken.
+  renderCommentPending();
 
   const controller = new AbortController();
   const requestId = ++commentRequestSerial;
@@ -683,14 +707,21 @@ async function requestAgentComment(item, idx) {
       body: JSON.stringify(payload),
       signal: controller.signal
     });
-    if (!response.ok) return;
+    if (!response.ok) {
+      if (commentIsCurrent(item, idx, requestId)) renderLocalReaction(option, safety);
+      return;
+    }
     const comment = validAgentComment(await response.json());
-    if (!comment) return;
+    if (!comment) {
+      if (commentIsCurrent(item, idx, requestId)) renderLocalReaction(option, safety);
+      return;
+    }
     commentCache.set(cacheKey, comment);
     if (commentCache.size > COMMENT_CACHE_LIMIT) commentCache.delete(commentCache.keys().next().value);
     if (commentIsCurrent(item, idx, requestId)) renderAgentComment(comment);
   } catch (_) {
-    // The local comment is the deliberate fallback for offline, slow, or failed calls.
+    // Local joke is the deliberate fallback for offline, slow, aborted, or failed calls.
+    if (commentIsCurrent(item, idx, requestId)) renderLocalReaction(option, safety);
   } finally {
     clearTimeout(timeout);
     if (commentRequest && commentRequest.id === requestId) commentRequest = null;
@@ -775,8 +806,11 @@ function pickOption(item, idx) {
   setCustomEditorActive(item, false);
   const safety = safetyModeAt(Q.indexOf(item));
   cancelCommentRequest();
-  renderLocalReaction(item.opts[idx], safety);
-  if (item.id !== "seguranca" && !safety) requestAgentComment(item, idx);
+  if (item.id === "seguranca" || safety) {
+    renderLocalReaction(item.opts[idx], safety);
+  } else {
+    requestAgentComment(item, idx);
+  }
   const next = $("next");
   next.disabled = false;
   $("q").classList.remove("has-sticky-nav");
@@ -900,8 +934,11 @@ function renderQ(options = {}) {
     renderCustomReaction();
   } else if (opt) {
     const safety = safetyModeAt(i);
-    renderLocalReaction(opt, safety);
-    if (item.id !== "seguranca" && !safety) requestAgentComment(item, picked);
+    if (item.id === "seguranca" || safety) {
+      renderLocalReaction(opt, safety);
+    } else {
+      requestAgentComment(item, picked);
+    }
   }
   $("q-title").focus({ preventScroll: true });
 
