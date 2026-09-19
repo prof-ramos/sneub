@@ -689,9 +689,9 @@ async function requestAgentComment(item, idx) {
     return;
   }
 
-  // Keep the reaction box empty/busy until one final comment is ready.
-  // Showing the local joke and then swapping to the AI roast mid-read feels broken.
-  renderCommentPending();
+  // Show the local joke immediately so the reader always has stable text.
+  // Fetch the AI roast only to warm the cache — never swap the on-screen comment mid-read.
+  renderLocalReaction(option, safety);
 
   const controller = new AbortController();
   const requestId = ++commentRequestSerial;
@@ -707,21 +707,14 @@ async function requestAgentComment(item, idx) {
       body: JSON.stringify(payload),
       signal: controller.signal
     });
-    if (!response.ok) {
-      if (commentIsCurrent(item, idx, requestId)) renderLocalReaction(option, safety);
-      return;
-    }
+    if (!response.ok) return;
     const comment = validAgentComment(await response.json());
-    if (!comment) {
-      if (commentIsCurrent(item, idx, requestId)) renderLocalReaction(option, safety);
-      return;
-    }
+    if (!comment) return;
     commentCache.set(cacheKey, comment);
     if (commentCache.size > COMMENT_CACHE_LIMIT) commentCache.delete(commentCache.keys().next().value);
-    if (commentIsCurrent(item, idx, requestId)) renderAgentComment(comment);
+    // Intentionally do not call renderAgentComment here.
   } catch (_) {
-    // Local joke is the deliberate fallback for offline, slow, aborted, or failed calls.
-    if (commentIsCurrent(item, idx, requestId)) renderLocalReaction(option, safety);
+    // Offline, slow, aborted, or failed calls keep the local joke already on screen.
   } finally {
     clearTimeout(timeout);
     if (commentRequest && commentRequest.id === requestId) commentRequest = null;
