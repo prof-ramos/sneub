@@ -80,12 +80,20 @@ function providerText(body) {
 }
 
 function parseComment(text) {
-  let parsed;
-  try { parsed = JSON.parse(text); } catch (_) { return null; }
-  if (!isRecord(parsed) || parsed.kind !== "roast" || typeof parsed.comment !== "string") return null;
-  const comment = parsed.comment.trim().replace(/\s+/g, " ");
-  if (!comment || comment.length > MAX_COMMENT_CHARS || /[<>\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(comment)) return null;
-  return { comment, kind: "roast" };
+  const raw = typeof text === "string" ? text.trim() : "";
+  if (!raw) return null;
+  const fenced = raw.match(/^\`\`\`(?:json)?\\s*([\\s\\S]*?)\\s*\`\`\`$/i);
+  const candidates = fenced ? [fenced[1].trim(), raw] : [raw];
+
+  for (const candidate of candidates) {
+    let parsed;
+    try { parsed = JSON.parse(candidate); } catch (_) { continue; }
+    if (!isRecord(parsed) || parsed.kind !== "roast" || typeof parsed.comment !== "string") continue;
+    const comment = parsed.comment.trim().replace(/\\s+/g, " ");
+    if (!comment || comment.length > MAX_COMMENT_CHARS || /[<>\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F]/.test(comment)) continue;
+    return { comment, kind: "roast" };
+  }
+  return null;
 }
 
 function providerRequest(payload, env, fetchImpl, timeoutMs) {
@@ -139,12 +147,27 @@ async function handleComment(req, res, options = {}) {
   try {
     const upstream = await providerRequest(payload, env, fetchImpl, options.timeoutMs || DEFAULT_TIMEOUT_MS);
     if (!upstream || !upstream.ok) {
+      console.warn("[api/comment] provider request failed", {
+        status: upstream && Number.isInteger(upstream.status) ? upstream.status : null
+      });
       return jsonResponse(res, upstream && upstream.status === 429 ? 429 : 502, { error: "provider_error" });
     }
-    const output = parseComment(providerText(await upstream.json()));
-    if (!output) return jsonResponse(res, 502, { error: "invalid_provider_response" });
+    const providerOutput = providerText(await upstream.json());
+    const output = parseComment(providerOutput);
+    if (!output) {
+      console.warn("[api/comment] invalid provider response", {
+        status: upstream.status || 200,
+        hasText: Boolean(providerOutput),
+        textLength: typeof providerOutput === "string" ? providerOutput.length : 0
+      });
+      return jsonResponse(res, 502, { error: "invalid_provider_response" });
+    }
     return jsonResponse(res, 200, output);
   } catch (error) {
+    console.warn("[api/comment] provider exception", {
+      name: error && error.name ? error.name : "Error",
+      code: error && error.code ? error.code : null
+    });
     return jsonResponse(res, error && error.name === "AbortError" ? 504 : 502, {
       error: error && error.code === "not_configured" ? "provider_unavailable" : "provider_error"
     });
