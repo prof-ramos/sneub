@@ -55,6 +55,23 @@ test("returns a structured model comment without sending free-text fields", asyn
   assert.doesNotMatch(sent.messages[1].content, /urgencia|syn|anos/);
 });
 
+test("accepts a structured comment wrapped in a markdown JSON fence", async () => {
+  const res = response();
+  await handleComment(request(payload(), "fenced-json"), res, {
+    env: { OPENAI_API_KEY: "test-key", SNEUB_COMMENT_MODEL: "test-model" },
+    fetchImpl: async () => providerResponse({
+      output_text: ```json
+{"comment":"Você chamou de exceção o que já virou padrão.","kind":"roast"}
+```
+    })
+  });
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(parsed(res), {
+    comment: "Você chamou de exceção o que já virou padrão.",
+    kind: "roast"
+  });
+});
+
 test("rejects custom-answer content before calling the comment provider", async () => {
   let calls = 0;
   const res = response();
