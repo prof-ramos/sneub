@@ -52,3 +52,14 @@ test("home privacy and progressive notebook remain visible in source", () => {
   assert.match(app, /WRITES\.slice\(0, 3\)/);
   assert.match(app, /<summary>Quero aprofundar<\/summary>/);
 });
+
+test("AI comment appends under the local reaction without replacing it", () => {
+  assert.match(app, /function renderAgentComment\(comment\)/);
+  assert.match(app, /dataset\.aiComment = "true"/);
+  assert.match(app, /querySelector\("\[data-ai-comment\]"\)/);
+  assert.match(app, /Comentário da IA: \$\{comment\}/);
+  assert.match(app, /renderLocalReaction\(option, safety\);\s*\n\s*renderAgentComment\(commentCache\.get\(cacheKey\)\)/);
+  assert.match(app, /\/\/ Show the local joke immediately/);
+  assert.match(app, /if \(commentIsCurrent\(item, idx, requestId\)\) renderAgentComment\(comment\)/);
+  assert.match(app, /cancelCommentRequest\(\)/);
+});

@@ -31,15 +31,19 @@ O backend valida IDs, capítulos e temas contra um catálogo fechado. Não regis
 
 ## Comentário generativo
 
-Configure no ambiente server-side:
+`/api/comment` usa Google Gemini (`generateContent`) com saída JSON estruturada. Configure no ambiente server-side:
 
 ```dotenv
 SNEUB_COMMENT_API_KEY=
-SNEUB_COMMENT_BASE_URL=https://code.verboo.ai/router/v1
-SNEUB_COMMENT_MODEL=deepseek-v4-flash
+SNEUB_COMMENT_BASE_URL=https://generativelanguage.googleapis.com/v1beta
+SNEUB_COMMENT_MODEL=gemini-3.5-flash-lite
 ```
 
-Sem essa configuração, o comentário local de cada alternativa continua funcionando.
+- `SNEUB_COMMENT_API_KEY` é obrigatória (header `x-goog-api-key`). Sem ela, o endpoint responde `503` e a UI mantém só o roast local.
+- `SNEUB_COMMENT_MODEL` é obrigatória; o valor recomendado é `gemini-3.5-flash-lite` (Flash-Lite estável, baixa latência/custo).
+- `SNEUB_COMMENT_BASE_URL` é opcional e aponta para a API REST `v1beta` do Gemini.
+
+Não há fallback OpenAI/`OPENAI_API_KEY`. A reação local de cada alternativa continua imediata; o comentário da IA, quando chega a tempo, é anexado abaixo.
 
 ## Jev / TypeSafe
 
