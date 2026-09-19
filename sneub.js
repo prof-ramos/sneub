@@ -495,6 +495,8 @@ const commentCache = new Map();
 let commentRequest = null;
 let commentRequestSerial = 0;
 let commentSessionId = null;
+let analysisRequest = null;
+let renderingHistory = false;
 
 function loadState() {
   try {
@@ -528,14 +530,42 @@ function setChrome(mode, label) {
   }
 }
 
-function show(id) {
+function routeForQuestion(item) {
+  return `#question=${encodeURIComponent(item.id)}`;
+}
+
+function setRoute(hash, replace = false) {
+  if (renderingHistory) return;
+  if (window.location.hash === hash) {
+    if (replace && (!window.history.state || !window.history.state.sneub)) {
+      window.history.replaceState({ sneub: true, internal: false }, "", hash);
+    }
+    return;
+  }
+  window.history[replace ? "replaceState" : "pushState"](
+    { sneub: true, internal: !replace },
+    "",
+    hash
+  );
+}
+
+function show(id, hash, replace = false) {
   document.querySelectorAll(".screen").forEach((s) => {
     s.classList.remove("on", "grave");
     s.setAttribute("aria-hidden", s.id === id ? "false" : "true");
   });
   $(id).classList.add("on");
+  if (hash) setRoute(hash, replace);
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   window.scrollTo({ top: 0, behavior: reduce ? "auto" : "instant" });
+}
+
+function goBack(fallback) {
+  if (window.history.state && window.history.state.sneub && window.history.state.internal) {
+    window.history.back();
+    return;
+  }
+  fallback();
 }
 
 function safetyLocked() {
@@ -679,7 +709,7 @@ function roastLine(rows, locked) {
   return ROASTS[top.k] || ROASTS.mix;
 }
 
-function renderHome() {
+function renderHome(options = {}) {
   setChrome("home");
   $("home").innerHTML = `
     <p class="tiny" style="margin-top:22px">Este site não conhece seu namorado.<br>
@@ -691,19 +721,36 @@ function renderHome() {
       <span>[ mas vamos descobrir ]</span>
     </div>
     <button class="cta hot" id="go" type="button" style="margin-top:36px">Descobrir a desgraça</button>
-    <p class="tiny">Sem cadastro. Sem mandar mensagem para o seu ex. Sem diagnóstico de TikTok.</p>
+    <p class="privacy-brief">Sem cadastro. Alternativas podem gerar comentários por IA. Texto livre só sai deste aparelho com sua autorização.</p>
     <p class="footer-dis">Isto não é avaliação clínica e não substitui apoio profissional. Algumas respostas fechadas podem ser processadas para gerar comentários. Respostas escritas só são enviadas se você escolher usar a análise com IA.</p>
   `;
-  show("home");
+  show("home", "#screen=home", options.replace === true);
   $("go").onclick = renderQ;
   $("go").focus();
 }
 
 function setQuestionSelection(value) {
   const expected = String(value);
-  $("q").querySelectorAll('[role="radio"]').forEach((button) => {
-    button.setAttribute("aria-checked", button.dataset.answer === expected ? "true" : "false");
+  const radios = [...$("q").querySelectorAll('[role="radio"]')];
+  const selected = radios.findIndex((button) => button.dataset.answer === expected);
+  const tabbable = selected >= 0 ? selected : 0;
+  radios.forEach((button, index) => {
+    const checked = index === selected;
+    button.setAttribute("aria-checked", checked ? "true" : "false");
+    button.tabIndex = index === tabbable ? 0 : -1;
   });
+}
+
+function setCustomValidation(item, announce = false) {
+  const textarea = $("custom-answer");
+  const error = $("custom-error");
+  const next = $("next");
+  if (!textarea || !error || !next) return false;
+  const valid = hasValidCustomAnswer(item);
+  textarea.setAttribute("aria-invalid", valid || !announce ? "false" : "true");
+  error.hidden = valid || !announce;
+  next.disabled = !valid;
+  return valid;
 }
 
 function setCustomEditorActive(item, active, focus = false) {
@@ -716,6 +763,7 @@ function setCustomEditorActive(item, active, focus = false) {
     textarea.value = state.c[item.id] || "";
     const count = $("custom-count");
     if (count) count.textContent = `${textarea.value.length} / ${CUSTOM_ANSWER_MAX_CHARS}`;
+    setCustomValidation(item, false);
     if (focus) textarea.focus();
   }
 }
@@ -731,6 +779,9 @@ function pickOption(item, idx) {
   if (item.id !== "seguranca" && !safety) requestAgentComment(item, idx);
   const next = $("next");
   next.disabled = false;
+  $("q").classList.remove("has-sticky-nav");
+  const nav = $("question-nav");
+  if (nav) nav.classList.remove("custom-sticky");
 }
 
 function pickCustomAnswer(item, focus = true) {
@@ -741,10 +792,12 @@ function pickCustomAnswer(item, focus = true) {
   setQuestionSelection(CUSTOM_ANSWER);
   setCustomEditorActive(item, true, focus);
   renderCustomReaction();
-  $("next").disabled = !hasValidCustomAnswer(item);
+  $("q").classList.add("has-sticky-nav");
+  $("question-nav").classList.add("custom-sticky");
+  setCustomValidation(item, false);
 }
 
-function renderQ() {
+function renderQ(options = {}) {
   const i = state.i;
   if (i >= Q.length) return renderWrites();
   const item = Q[i];
@@ -758,25 +811,26 @@ function renderQ() {
 
   $("q").innerHTML = `
     <p class="sr-only" id="qstatus">Pergunta ${i + 1} de ${Q.length}. ${CHAPTERS[item.ch]}</p>
-    <div class="count"><b>${n}</b> / ${total}</div>
     <div class="chap"><span>Cap. ${item.ch}</span> ${CHAPTERS[item.ch].replace(/^Capítulo \d+\. /, "")}</div>
-    <h1 class="q" id="question" tabindex="-1">${item.q}</h1>
-    <div class="opts" id="opts" role="radiogroup" aria-labelledby="question"></div>
+    <h1 class="q" id="q-title" tabindex="-1">${item.q}</h1>
+    <div class="opts" id="opts" role="radiogroup" aria-labelledby="q-title" aria-describedby="qstatus"></div>
     ${allowsCustomAnswer(item) ? `
       <div class="custom-answer" id="custombox" hidden>
         <label for="custom-answer">Escreve do seu jeito.</label>
-        <textarea id="custom-answer" maxlength="${CUSTOM_ANSWER_MAX_CHARS}" required aria-describedby="custom-answer-help custom-count"></textarea>
+        <textarea id="custom-answer" maxlength="${CUSTOM_ANSWER_MAX_CHARS}" required aria-describedby="custom-answer-help custom-error custom-count" aria-invalid="false"></textarea>
         <div class="custom-meta">
           <span id="custom-answer-help">Fica neste aparelho até você autorizar a análise.</span>
           <span id="custom-count">0 / ${CUSTOM_ANSWER_MAX_CHARS}</span>
         </div>
+        <p class="field-error" id="custom-error" role="alert" hidden>Escreve alguma coisa além de espaços para seguir.</p>
       </div>` : ""}
     <div class="react ${opt || customPicked ? "on" : ""}" id="react" aria-live="polite"></div>
-    <div class="nav">
+    <div class="nav${customPicked ? " custom-sticky" : ""}" id="question-nav">
       <button class="cta" id="next" type="button" ${picked == null || (customPicked && !hasValidCustomAnswer(item)) ? "disabled" : ""}>${i === Q.length - 1 ? "Escrever o resto" : "Seguir"}</button>
       <button class="cta line" id="back" type="button">${i === 0 ? "Capa" : "Voltar"}</button>
     </div>
   `;
+  $("q").classList.toggle("has-sticky-nav", customPicked);
   const group = $("opts");
   item.opts.forEach((o, idx) => {
     const btn = document.createElement("button");
@@ -784,6 +838,7 @@ function renderQ() {
     btn.className = "opt";
     btn.setAttribute("role", "radio");
     btn.setAttribute("aria-checked", picked === idx ? "true" : "false");
+    btn.tabIndex = -1;
     btn.dataset.answer = String(idx);
     const mark = document.createElement("span");
     mark.className = "mark";
@@ -800,6 +855,7 @@ function renderQ() {
     btn.className = "opt custom-opt";
     btn.setAttribute("role", "radio");
     btn.setAttribute("aria-checked", customPicked ? "true" : "false");
+    btn.tabIndex = -1;
     btn.dataset.answer = CUSTOM_ANSWER;
     const mark = document.createElement("span");
     mark.className = "mark";
@@ -815,25 +871,29 @@ function renderQ() {
     textarea.addEventListener("input", () => {
       state.c[item.id] = textarea.value;
       save();
-      $("next").disabled = !hasValidCustomAnswer(item);
       $("custom-count").textContent = `${textarea.value.length} / ${CUSTOM_ANSWER_MAX_CHARS}`;
+      setCustomValidation(item, false);
     });
+    textarea.addEventListener("blur", () => setCustomValidation(item, true));
     setCustomEditorActive(item, customPicked);
   }
+  setQuestionSelection(picked == null ? "" : picked);
   group.addEventListener("keydown", (e) => {
-    const keys = ["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft"];
+    const keys = ["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft", "Home", "End"];
     if (!keys.includes(e.key)) return;
     e.preventDefault();
     const radios = [...group.querySelectorAll('[role="radio"]')];
-    const cur = radios.findIndex((r) => r.getAttribute("aria-checked") === "true");
-    const start = cur < 0 ? 0 : cur;
+    const focused = radios.indexOf(document.activeElement);
+    const checked = radios.findIndex((r) => r.getAttribute("aria-checked") === "true");
+    const start = focused >= 0 ? focused : (checked >= 0 ? checked : 0);
     const dir = (e.key === "ArrowDown" || e.key === "ArrowRight") ? 1 : -1;
-    const next = (start + dir + radios.length) % radios.length;
+    const next = e.key === "Home" ? 0 : e.key === "End" ? radios.length - 1 :
+      (start + dir + radios.length) % radios.length;
     radios[next].click();
     radios[next].focus();
   });
 
-  show("q");
+  show("q", routeForQuestion(item), options.replace === true);
   if (grave) $("q").classList.add("grave");
   if (customPicked) {
     cancelCommentRequest();
@@ -843,76 +903,96 @@ function renderQ() {
     renderLocalReaction(opt, safety);
     if (item.id !== "seguranca" && !safety) requestAgentComment(item, picked);
   }
-  $("question").focus({ preventScroll: true });
+  $("q-title").focus({ preventScroll: true });
 
   $("next").onclick = () => {
     if (state.a[item.id] == null) return;
-    if (state.a[item.id] === CUSTOM_ANSWER && !hasValidCustomAnswer(item)) return;
+    if (state.a[item.id] === CUSTOM_ANSWER && !setCustomValidation(item, true)) {
+      $("custom-answer").focus();
+      return;
+    }
     cancelCommentRequest();
+    if (safetyModeAt(i)) return renderGate();
     state.i = i + 1;
     save();
     if (state.i >= Q.length) renderWrites();
     else renderQ();
   };
   $("back").onclick = () => {
-    if (i === 0) return renderHome();
     cancelCommentRequest();
-    state.i = i - 1;
-    save();
-    renderQ();
+    goBack(() => {
+      if (i === 0) return renderHome({ replace: true });
+      state.i = i - 1;
+      save();
+      renderQ({ replace: true });
+    });
   };
 }
 
-function renderWrites() {
+function appendWriteField(box, write) {
+  const lab = document.createElement("label");
+  lab.setAttribute("for", "w-" + write.id);
+  lab.textContent = write.q;
+  const ta = document.createElement("textarea");
+  ta.id = "w-" + write.id;
+  ta.value = state.w[write.id] || "";
+  ta.addEventListener("input", () => { state.w[write.id] = ta.value; save(); });
+  box.append(lab, ta);
+}
+
+function appendSynthesisField(box, synthesis) {
+  const lab = document.createElement("label");
+  lab.setAttribute("for", "s-" + synthesis.id);
+  lab.textContent = synthesis.q;
+  const inp = document.createElement("input");
+  inp.className = "line";
+  inp.id = "s-" + synthesis.id;
+  inp.value = state.syn[synthesis.id] || "";
+  inp.addEventListener("input", () => { state.syn[synthesis.id] = inp.value; save(); });
+  box.append(lab, inp);
+}
+
+function renderWrites(options = {}) {
   setChrome("step", "caderno");
   $("writes").innerHTML = `
     <div class="count">depois das opções</div>
     <div class="chap">A parte que o botão não cobre</div>
-    <h1 class="q" id="question" tabindex="-1" style="max-width:16ch">Escreve sem pensar demais.</h1>
+    <h1 class="q" id="writes-title" tabindex="-1" style="max-width:16ch">Escreve sem pensar demais.</h1>
+    <p class="aside writes-intro">O caderno é opcional. Você pode ver o resultado agora ou responder só o que fizer sentido.</p>
+    <button class="cta hot" id="toGate" type="button">Ver o resultado agora</button>
     <div class="open" id="openbox" style="margin-top:22px"></div>
-    <button class="cta" id="toGate" type="button" style="margin-top:28px">Ver o que apareceu</button>
+    <details class="deep-dive" id="deepDive">
+      <summary>Quero aprofundar</summary>
+      <div class="open" id="extra-openbox"></div>
+    </details>
     <button class="cta line" id="backQ" type="button">Voltar à última pergunta</button>
   `;
   const box = $("openbox");
-  WRITES.forEach((w) => {
-    const lab = document.createElement("label");
-    lab.setAttribute("for", "w-" + w.id);
-    lab.textContent = w.q;
-    const ta = document.createElement("textarea");
-    ta.id = "w-" + w.id;
-    ta.value = state.w[w.id] || "";
-    ta.addEventListener("input", () => { state.w[w.id] = ta.value; save(); });
-    box.append(lab, ta);
-  });
+  WRITES.slice(0, 3).forEach((write) => appendWriteField(box, write));
+  const extra = $("extra-openbox");
+  WRITES.slice(3).forEach((write) => appendWriteField(extra, write));
   const synTitle = document.createElement("div");
   synTitle.className = "chap";
   synTitle.style.marginTop = "28px";
   synTitle.textContent = "Síntese";
-  box.append(synTitle);
-  SYN.forEach((s) => {
-    const lab = document.createElement("label");
-    lab.setAttribute("for", "s-" + s.id);
-    lab.textContent = s.q;
-    const inp = document.createElement("input");
-    inp.className = "line";
-    inp.id = "s-" + s.id;
-    inp.value = state.syn[s.id] || "";
-    inp.addEventListener("input", () => { state.syn[s.id] = inp.value; save(); });
-    box.append(lab, inp);
-  });
-  show("writes");
-  $("question").focus({ preventScroll: true });
+  extra.append(synTitle);
+  SYN.forEach((synthesis) => appendSynthesisField(extra, synthesis));
+  show("writes", "#screen=writes", options.replace === true);
+  $("writes-title").focus({ preventScroll: true });
   $("toGate").onclick = renderGate;
-  $("backQ").onclick = () => { state.i = Q.length - 1; save(); renderQ(); };
+  $("backQ").onclick = () => goBack(() => {
+    state.i = Q.length - 1;
+    save();
+    renderQ({ replace: true });
+  });
 }
 
 function collectCustomAnswers() {
   return collectCustomAnswersFromState(Q, state);
 }
 
-async function requestCustomAnalysis(answers) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), JEV_TIMEOUT_MS);
+async function requestCustomAnalysis(answers, request) {
+  const timeout = setTimeout(() => request.controller.abort(), JEV_TIMEOUT_MS);
   try {
     const response = await fetch("/api/analyze", {
       method: "POST",
@@ -921,7 +1001,7 @@ async function requestCustomAnalysis(answers) {
         "x-sneub-session": commentSession()
       },
       body: JSON.stringify({ answers }),
-      signal: controller.signal
+      signal: request.controller.signal
     });
     if (!response.ok) throw new Error("analysis_failed");
     const analysis = validCustomAnalysis(await response.json(), answers);
@@ -936,11 +1016,21 @@ function renderAnalysisLoading() {
   setChrome("step", "lendo");
   $("gate").innerHTML = `
     <div class="count">análise autorizada</div>
-    <h1 class="q" id="question" tabindex="-1">Lendo o que você escreveu…</h1>
+    <div class="loading-indicator" aria-hidden="true"></div>
+    <h1 class="q" id="loading-title" tabindex="-1">Lendo o que você escreveu…</h1>
     <p class="aside">Só as respostas marcadas como “Outra resposta” foram enviadas. Se o serviço falhar, o resultado local aparece mesmo assim.</p>
+    <p class="tiny" role="status" aria-live="polite">A análise leva no máximo alguns segundos.</p>
+    <button class="cta line loading-skip" id="skipAnalysis" type="button">Continuar sem esperar</button>
   `;
   show("gate");
-  $("question").focus({ preventScroll: true });
+  $("loading-title").focus({ preventScroll: true });
+  $("skipAnalysis").onclick = () => {
+    if (analysisRequest) {
+      analysisRequest.cancelled = true;
+      analysisRequest.controller.abort();
+    }
+    renderOut(null, "Você continuou sem esperar. O resultado considera apenas as alternativas marcadas.", { canRetry: true });
+  };
 }
 
 async function analyzeCustomAnswers() {
@@ -953,22 +1043,63 @@ async function analyzeCustomAnswers() {
     renderOut();
     return;
   }
+  const request = { controller: new AbortController(), cancelled: false };
+  analysisRequest = request;
   renderAnalysisLoading();
   try {
-    const analysis = await requestCustomAnalysis(answers);
+    const analysis = await requestCustomAnalysis(answers, request);
+    if (request.cancelled) return;
     renderOut(analysis);
   } catch (_) {
-    renderOut(null, "Não consegui interpretar as respostas escritas. Este resultado considera apenas as alternativas marcadas.");
+    if (request.cancelled) return;
+    renderOut(
+      null,
+      "Não consegui interpretar as respostas escritas. Este resultado considera apenas as alternativas marcadas.",
+      { canRetry: true }
+    );
+  } finally {
+    if (analysisRequest === request) analysisRequest = null;
   }
 }
 
-function renderGate() {
+function safetySupportActions() {
+  return `
+    <div class="safety-actions" aria-label="Apoio imediato">
+      <a class="cta hot" href="tel:180">Ligar para o 180</a>
+      <p>Central de Atendimento à Mulher: orientação sobre violência e serviços próximos.</p>
+      <a class="cta line" href="tel:188">Ligar para o 188</a>
+      <p>CVV: apoio emocional gratuito, 24 horas por dia.</p>
+    </div>`;
+}
+
+function renderSafetyGate(options = {}) {
+  setChrome("step", "segurança");
+  $("gate").innerHTML = `
+    <div class="chap"><span>Sem roast agora</span></div>
+    <h1 class="q" id="gate-title" tabindex="-1">Sua segurança vem primeiro.</h1>
+    <p class="lead">Você marcou medo, controle, coerção ou violência. Isso merece apoio real — e não uma piada.</p>
+    <div class="safety-panel">
+      <p>Se existe risco agora, saia deste site quando for seguro e procure uma pessoa de confiança. Use os contatos abaixo apenas se isso não aumentar o risco.</p>
+      ${safetySupportActions()}
+    </div>
+    <button class="cta line discreet" id="safetyContinue" type="button">Continuar em modo discreto</button>
+    <button class="cta text-action" id="safetyBack" type="button">Rever a resposta</button>
+  `;
+  show("gate", "#screen=gate", options.replace === true);
+  $("gate").classList.add("grave");
+  $("gate-title").focus({ preventScroll: true });
+  $("safetyContinue").onclick = () => renderOut();
+  $("safetyBack").onclick = () => goBack(() => renderQ({ replace: true }));
+}
+
+function renderGate(options = {}) {
+  if (safetyLocked()) return renderSafetyGate(options);
   const customAnswers = collectCustomAnswers();
-  const canAnalyze = customAnswers.length > 0 && !safetyLocked();
+  const canAnalyze = customAnswers.length > 0;
   setChrome("step", "antes");
   $("gate").innerHTML = `
     <div class="count">antes do resultado</div>
-    <h1 class="q" id="question" tabindex="-1" style="max-width:16ch">Isto não é um diagnóstico.</h1>
+    <h1 class="q" id="gate-title" tabindex="-1" style="max-width:16ch">Isto não é um diagnóstico.</h1>
     <p class="aside">Nenhuma porcentagem. Nenhum laudo. Só padrões que apareceram nas suas respostas, e uma frase para levar, se quiser.</p>
     <p class="aside" style="margin-top:18px">Se o que você descreveu envolve medo, ameaça, controle, isolamento, coerção ou violência, ignore o tom do site. Isso pode ser sério. <a href="tel:180">180</a> e <a href="tel:188">188</a> existem.</p>
     ${canAnalyze ? `
@@ -977,10 +1108,10 @@ function renderGate() {
         <button class="cta hot" id="analyze" type="button">Analisar minhas respostas escritas</button>
         <button class="cta line" id="without" type="button">Continuar sem enviar</button>
       </div>` : `
-      <button class="cta hot" id="see" type="button" style="margin-top:auto">Mostrar mesmo assim</button>`}
+      <button class="cta hot" id="see" type="button" style="margin-top:auto">Ver meu resultado</button>`}
   `;
-  show("gate");
-  $("question").focus({ preventScroll: true });
+  show("gate", "#screen=gate", options.replace === true);
+  $("gate-title").focus({ preventScroll: true });
   if (canAnalyze) {
     $("analyze").onclick = analyzeCustomAnswers;
     $("without").onclick = () => renderOut();
@@ -989,24 +1120,40 @@ function renderGate() {
   }
 }
 
-function renderOut(customAnalysis = null, analysisWarning = "") {
+function renderSafetyOut(options = {}) {
+  setChrome("step", "segurança");
+  $("out").innerHTML = `
+    <h1 class="res" id="out-title" tabindex="-1">Antes de qualquer resultado.</h1>
+    <p class="lead">O padrão que importa agora é segurança. O resto pode esperar.</p>
+    <div class="safety-panel">
+      <p>Você não precisa decidir tudo hoje. Se puder, avise alguém de confiança e combine uma forma segura de pedir ajuda.</p>
+      ${safetySupportActions()}
+    </div>
+    <p class="tiny safety-note">Se não for seguro ligar, feche esta página e use um aparelho ao qual a outra pessoa não tenha acesso.</p>
+    <button class="cta line" id="again" type="button">Rever respostas</button>
+  `;
+  show("out", "#screen=result", options.replace === true);
+  $("out").classList.add("grave");
+  $("out-title").focus({ preventScroll: true });
+  $("again").onclick = () => { state.i = 0; save(); renderQ(); };
+}
+
+function renderOut(customAnalysis = null, analysisWarning = "", options = {}) {
+  if (safetyLocked()) return renderSafetyOut(options);
   const rows = patterns(customAnalysis);
-  const locked = safetyLocked();
   const working = rows.filter((r) => r.good && r.heat < 0.35).sort((a, b) => b.good - a.good).slice(0, 3);
   const yellow = rows.filter((r) => r.heat >= 0.35 && r.heat < 0.85);
   const reds = rows.filter((r) => r.heat >= 0.85 || (r.k === "seguranca" && r.bad));
   const attention = [...reds, ...yellow].filter((v, i, arr) => arr.findIndex((x) => x.k === v.k) === i).slice(0, 4);
   const answered = Q.filter((q) => state.a[q.id] != null).length;
-  const line = roastLine(rows, locked);
+  const line = roastLine(rows, false);
   setChrome("step", "resultado");
 
   $("out").innerHTML = `
     <div class="count">${answered} perguntas respondidas</div>
-    <h2 class="res" id="question" tabindex="-1">${locked ? "Antes de qualquer roast." : "Então… temos coisas para conversar."}</h2>
-    ${analysisWarning ? `<p class="analysis-note" role="status">${analysisWarning}</p>` : ""}
-    <p class="lead">${locked
-      ? "O padrão que mais importa agora não é falta de amor. É segurança. O resto pode esperar."
-      : "Você respondeu " + answered + " perguntas. O padrão que mais apareceu não foi falta de amor. Foi desgaste, ou a recusa em nomear o desgaste."}</p>
+    <h1 class="res" id="out-title" tabindex="-1">Então… temos coisas para conversar.</h1>
+    ${analysisWarning ? `<div class="analysis-note" role="status"><p>${analysisWarning}</p>${options.canRetry ? `<button class="text-action" id="retryAnalysis" type="button">Tentar a análise novamente</button>` : ""}</div>` : ""}
+    <p class="lead">Você respondeu ${answered} perguntas. O padrão que mais apareceu não foi falta de amor. Foi desgaste, ou a recusa em nomear o desgaste.</p>
     ${working.length ? `
       <div class="block">
         <div class="k">O que parece estar funcionando</div>
@@ -1044,9 +1191,8 @@ function renderOut(customAnalysis = null, analysisWarning = "") {
   `;
   $("roastcard").textContent = line;
   $("anos").value = state.anos || "";
-  show("out");
-  if (locked) $("out").classList.add("grave");
-  $("question").focus({ preventScroll: true });
+  show("out", "#screen=result", options.replace === true);
+  $("out-title").focus({ preventScroll: true });
   $("anos").oninput = (e) => { state.anos = e.target.value; save(); };
   $("copy").onclick = async () => {
     const txt = "SEU NAMORO É UMA BOSTA?\n\nDiagnóstico absolutamente não científico™\n“" + line + "”\n\nsneub";
@@ -1062,14 +1208,66 @@ function renderOut(customAnalysis = null, analysisWarning = "") {
       $("copy").textContent = "Texto selecionado. Copia aí.";
     }
   };
+  if ($("retryAnalysis")) $("retryAnalysis").onclick = analyzeCustomAnswers;
   $("again").onclick = () => { state.i = 0; save(); renderQ(); };
 }
 
 $("wipe").onclick = () => {
   if (confirm("Apagar tudo o que você respondeu neste aparelho?")) {
     try { localStorage.removeItem(KEY); } catch (_) {}
-    location.reload();
+    cancelCommentRequest();
+    if (analysisRequest) {
+      analysisRequest.cancelled = true;
+      analysisRequest.controller.abort();
+    }
+    Object.keys(state).forEach((key) => delete state[key]);
+    Object.assign(state, createEmptyState());
+    window.history.replaceState({ sneub: true, internal: false }, "", "#screen=home");
+    renderHome({ replace: true });
   }
 };
 
-renderHome();
+function renderFromLocation(initial = false) {
+  renderingHistory = true;
+  let canonicalHash = window.location.hash || "#screen=home";
+  try {
+    const hash = canonicalHash;
+    if (hash.startsWith("#question=")) {
+      let id = "";
+      try { id = decodeURIComponent(hash.slice("#question=".length)); } catch (_) {}
+      const index = Q.findIndex((question) => question.id === id);
+      if (index >= 0) {
+        state.i = index;
+        save();
+        renderQ();
+      } else {
+        renderHome();
+        canonicalHash = "#screen=home";
+      }
+    } else if (hash === "#screen=writes" || hash === "#writes") {
+      renderWrites();
+      canonicalHash = "#screen=writes";
+    } else if (hash === "#screen=gate" || hash === "#gate") {
+      renderGate();
+      canonicalHash = "#screen=gate";
+    } else if (hash === "#screen=result" || hash === "#result") {
+      renderOut();
+      canonicalHash = "#screen=result";
+    } else {
+      renderHome();
+      canonicalHash = "#screen=home";
+    }
+  } finally {
+    renderingHistory = false;
+  }
+  if (initial || window.location.hash !== canonicalHash) {
+    window.history.replaceState(
+      { sneub: true, internal: initial ? false : Boolean(window.history.state && window.history.state.internal) },
+      "",
+      canonicalHash
+    );
+  }
+}
+
+window.addEventListener("popstate", () => renderFromLocation());
+renderFromLocation(true);
