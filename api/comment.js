@@ -63,10 +63,7 @@ async function handleComment(req, res, options = {}) {
     if (error && error.code === "not_configured") {
       return jsonResponse(res, 503, { error: "provider_unavailable" });
     }
-    if (error && error.name === "AbortError") {
-      return jsonResponse(res, 504, { error: "provider_error" });
-    }
-    return jsonResponse(res, 502, { error: "provider_error" });
+    return jsonResponse(res, error && error.name === "AbortError" ? 504 : 502, { error: "provider_error" });
   }
 }
 
