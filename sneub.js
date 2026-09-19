@@ -509,10 +509,28 @@ function loadState() {
 
 const state = loadState();
 const $ = (id) => document.getElementById(id);
+let saveTimer = null;
 
 function save() {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
   try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) {}
 }
+
+function scheduleSave() {
+  if (saveTimer) clearTimeout(saveTimer);
+  // Text input can fire on every keystroke; coalesce synchronous localStorage writes off the hot path.
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    save();
+  }, 200);
+}
+
+window.addEventListener("pagehide", () => {
+  if (saveTimer) save();
+});
 
 function setChrome(mode, label) {
   const word = $("wordmark");
@@ -892,7 +910,7 @@ function renderQ(options = {}) {
     textarea.value = state.c[item.id] || "";
     textarea.addEventListener("input", () => {
       state.c[item.id] = textarea.value;
-      save();
+      scheduleSave();
       $("custom-count").textContent = `${textarea.value.length} / ${CUSTOM_ANSWER_MAX_CHARS}`;
       setCustomValidation(item, false);
     });
@@ -961,7 +979,7 @@ function appendWriteField(box, write) {
   const ta = document.createElement("textarea");
   ta.id = "w-" + write.id;
   ta.value = state.w[write.id] || "";
-  ta.addEventListener("input", () => { state.w[write.id] = ta.value; save(); });
+  ta.addEventListener("input", () => { state.w[write.id] = ta.value; scheduleSave(); });
   box.append(lab, ta);
 }
 
@@ -973,7 +991,7 @@ function appendSynthesisField(box, synthesis) {
   inp.className = "line";
   inp.id = "s-" + synthesis.id;
   inp.value = state.syn[synthesis.id] || "";
-  inp.addEventListener("input", () => { state.syn[synthesis.id] = inp.value; save(); });
+  inp.addEventListener("input", () => { state.syn[synthesis.id] = inp.value; scheduleSave(); });
   box.append(lab, inp);
 }
 
@@ -1218,7 +1236,7 @@ function renderOut(customAnalysis = null, analysisWarning = "", options = {}) {
   $("anos").value = state.anos || "";
   show("out", "#screen=result", options.replace === true);
   $("out-title").focus({ preventScroll: true });
-  $("anos").oninput = (e) => { state.anos = e.target.value; save(); };
+  $("anos").oninput = (e) => { state.anos = e.target.value; scheduleSave(); };
   $("copy").onclick = async () => {
     const txt = "SEU NAMORO É UMA BOSTA?\n\nDiagnóstico absolutamente não científico™\n“" + line + "”\n\nsneub";
     try {
