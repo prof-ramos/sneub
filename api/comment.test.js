@@ -14,6 +14,10 @@ function payload(overrides = {}) {
   return {
     question: { id: "paz", chapter: 1, text: "Esta relação te traz mais paz do que dúvidas?" },
     selected: { index: 1, text: "Às vezes.", tone: "y", themes: { paz: "warn" } },
+    onScreen: {
+      joke: "O “às vezes” carregando um relacionamento inteiro nas costas.",
+      more: "Dúvida crônica não é profundidade. É o sistema pedindo uma conversa que você vem adiando."
+    },
     previous: [],
     ...overrides
   };
@@ -85,7 +89,11 @@ test("returns a structured Gemini comment and sends schema + closed payload only
   assert.deepEqual(sent.generationConfig.responseSchema.required, ["comment", "kind"]);
   assert.deepEqual(sent.generationConfig.responseSchema.properties.kind.enum, ["roast"]);
   assert.match(sent.system_instruction.parts[0].text, /SNEUB/);
+  assert.match(sent.system_instruction.parts[0].text, /onScreen/);
+  assert.match(sent.system_instruction.parts[0].text, /ângulo NOVO|angulo NOVO|não parafraseie|nao parafraseie/i);
   assert.match(sent.contents[0].parts[0].text, /paz/);
+  assert.match(sent.contents[0].parts[0].text, /onScreen/);
+  assert.match(sent.contents[0].parts[0].text, /carregando um relacionamento/);
   assert.doesNotMatch(sent.contents[0].parts[0].text, /urgencia|syn|anos|texto livre/);
   assert.equal(Object.prototype.hasOwnProperty.call(sent, "messages"), false);
 });
@@ -138,6 +146,15 @@ test("rejects invalid payload and free-text fields before calling Gemini", async
   });
   assert.equal(freeText.statusCode, 400);
   assert.equal(calls, 0);
+
+  const missingOnScreen = response();
+  const withoutOnScreen = payload();
+  delete withoutOnScreen.onScreen;
+  await handleComment(request(withoutOnScreen), missingOnScreen, {
+    env: ENV,
+    fetchImpl: async () => { calls += 1; return providerResponse({}); }
+  });
+  assert.equal(missingOnScreen.statusCode, 400);
 
   const badSelected = response();
   await handleComment(request({

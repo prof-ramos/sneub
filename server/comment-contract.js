@@ -30,6 +30,15 @@ function validSelected(value) {
     validShortText(value.text, 500) && TONES.has(value.tone) && validThemes(value.themes);
 }
 
+function validOnScreen(value) {
+  if (!isRecord(value)) return false;
+  const keys = Object.keys(value);
+  if (!keys.includes("joke") || keys.some((key) => key !== "joke" && key !== "more")) return false;
+  if (!validShortText(value.joke, 500)) return false;
+  if ("more" in value && !validShortText(value.more, 500)) return false;
+  return true;
+}
+
 function validPrevious(value) {
   return hasOnlyKeys(value, [
     "questionId", "chapter", "questionText", "optionIndex", "optionText", "tone", "themes"
@@ -42,10 +51,10 @@ function validPrevious(value) {
 }
 
 function validatePayload(payload) {
-  if (!hasOnlyKeys(payload, ["question", "selected", "previous"])) {
+  if (!hasOnlyKeys(payload, ["question", "selected", "onScreen", "previous"])) {
     return { ok: false, error: "invalid_payload" };
   }
-  if (!validQuestion(payload.question) || !validSelected(payload.selected)) {
+  if (!validQuestion(payload.question) || !validSelected(payload.selected) || !validOnScreen(payload.onScreen)) {
     return { ok: false, error: "invalid_payload" };
   }
   if (!Array.isArray(payload.previous) || payload.previous.length > MAX_PREVIOUS ||

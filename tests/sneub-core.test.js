@@ -71,6 +71,7 @@ test("comment payload omits prior custom answers", () => {
     c: { paz: "texto livre privado" }
   }, QUESTIONS[1], 1);
   assert.equal(payload.selected.text, "Os dois.");
+  assert.equal(payload.onScreen.joke, QUESTIONS[1].opts[1].joke);
   assert.deepEqual(payload.previous, []);
   assert.doesNotMatch(JSON.stringify(payload), /texto livre privado/);
 });

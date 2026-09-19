@@ -642,7 +642,7 @@ function renderAgentComment(comment) {
   const ai = document.createElement("p");
   ai.className = "more";
   ai.dataset.aiComment = "true";
-  ai.textContent = `Comentário da IA: ${comment}`;
+  ai.textContent = comment;
   box.appendChild(ai);
 }
 
