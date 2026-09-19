@@ -73,7 +73,8 @@ function parseComment(text) {
   for (const candidate of candidates) {
     let parsed;
     try { parsed = JSON.parse(candidate); } catch (_) { continue; }
-    if (!isRecord(parsed) || parsed.kind !== "roast" || typeof parsed.comment !== "string") continue;
+    if (!isRecord(parsed) || !hasOnlyKeys(parsed, ["comment", "kind"]) ||
+        parsed.kind !== "roast" || typeof parsed.comment !== "string") continue;
     const comment = parsed.comment.trim().replace(/\s+/g, " ");
     if (!comment || comment.length > MAX_COMMENT_CHARS || /[<>\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(comment)) continue;
     return { comment, kind: "roast" };

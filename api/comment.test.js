@@ -92,6 +92,7 @@ test("returns a structured Gemini comment and sends schema + closed payload only
   assert.match(sent.system_instruction.parts[0].text, /onScreen/);
   assert.match(sent.system_instruction.parts[0].text, /ácido|acido/i);
   assert.match(sent.system_instruction.parts[0].text, /ângulo NOVO|angulo NOVO|não parafraseie|nao parafraseie|sem parafrasear/i);
+  assert.match(sent.system_instruction.parts[0].text, /Não atribua emoções, intenções, diagnósticos ou comportamentos à outra pessoa/);
   assert.match(sent.contents[0].parts[0].text, /paz/);
   assert.match(sent.contents[0].parts[0].text, /onScreen/);
   assert.match(sent.contents[0].parts[0].text, /carregando um relacionamento/);
@@ -136,6 +137,17 @@ test("accepts schema-contract JSON and rejects empty, oversized, or wrong-kind c
     }))
   });
   assert.equal(wrongKind.statusCode, 502);
+
+  const extraKeys = response();
+  await handleComment(request(payload(), "extra-keys"), extraKeys, {
+    env: ENV,
+    fetchImpl: async () => providerResponse(geminiBody({
+      comment: "Chamar dúvida recorrente de mistério é só iluminar um problema velho.",
+      kind: "roast",
+      reason: "should-be-rejected"
+    }))
+  });
+  assert.equal(extraKeys.statusCode, 502);
 });
 
 test("rejects invalid payload and free-text fields before calling Gemini", async () => {
