@@ -90,7 +90,8 @@ test("returns a structured Gemini comment and sends schema + closed payload only
   assert.deepEqual(sent.generationConfig.responseSchema.properties.kind.enum, ["roast"]);
   assert.match(sent.system_instruction.parts[0].text, /SNEUB/);
   assert.match(sent.system_instruction.parts[0].text, /onScreen/);
-  assert.match(sent.system_instruction.parts[0].text, /ângulo NOVO|angulo NOVO|não parafraseie|nao parafraseie/i);
+  assert.match(sent.system_instruction.parts[0].text, /ácido|acido/i);
+  assert.match(sent.system_instruction.parts[0].text, /ângulo NOVO|angulo NOVO|não parafraseie|nao parafraseie|sem parafrasear/i);
   assert.match(sent.contents[0].parts[0].text, /paz/);
   assert.match(sent.contents[0].parts[0].text, /onScreen/);
   assert.match(sent.contents[0].parts[0].text, /carregando um relacionamento/);
