@@ -64,3 +64,10 @@ test("AI comment appends under the local reaction without replacing it", () => {
   assert.match(app, /if \(commentIsCurrent\(item, idx, requestId\)\) renderAgentComment\(comment\)/);
   assert.match(app, /cancelCommentRequest\(\)/);
 });
+
+test("Google Fonts stylesheet does not block first paint", () => {
+  // media=print + onload keeps the CSS off the critical path; fallbacks already cover FCP.
+  assert.match(html, /fonts\.googleapis\.com\/css2[^"']*["']\s+media="print"\s+onload=/);
+  assert.match(html, /<noscript>[\s\S]*fonts\.googleapis\.com\/css2/);
+  assert.doesNotMatch(html, /<link href="https:\/\/fonts\.googleapis\.com\/css2[^"]*" rel="stylesheet" \/>/);
+});
