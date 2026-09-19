@@ -63,6 +63,8 @@
     const index = questions.indexOf(item);
     const selected = item.opts[selectedIndex];
     if (index < 0 || !selected) return null;
+    const onScreen = { joke: selected.joke };
+    if (selected.more) onScreen.more = selected.more;
     return {
       question: { id: item.id, chapter: item.ch, text: item.q },
       selected: {
@@ -71,6 +73,7 @@
         tone: selected.tone,
         themes: selected.themes || {}
       },
+      onScreen,
       previous: questions.slice(0, index).flatMap((question) => {
         const answer = state.a[question.id];
         const option = Number.isInteger(answer) ? question.opts[answer] : null;

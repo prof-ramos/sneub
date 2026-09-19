@@ -614,14 +614,6 @@ function setReactBusy(busy) {
   else box.removeAttribute("aria-busy");
 }
 
-function renderCommentPending() {
-  const box = $("react");
-  if (!box) return;
-  box.classList.add("on");
-  setReactBusy(true);
-  box.replaceChildren();
-}
-
 function renderLocalReaction(option, safety = false) {
   const box = $("react");
   if (!box) return;
@@ -645,11 +637,13 @@ function renderAgentComment(comment) {
   if (!box) return;
   box.classList.add("on");
   setReactBusy(false);
-  box.replaceChildren();
-  const joke = document.createElement("p");
-  joke.className = "joke";
-  joke.textContent = comment;
-  box.appendChild(joke);
+  const existing = box.querySelector("[data-ai-comment]");
+  if (existing) existing.remove();
+  const ai = document.createElement("p");
+  ai.className = "more";
+  ai.dataset.aiComment = "true";
+  ai.textContent = comment;
+  box.appendChild(ai);
 }
 
 function renderCustomReaction() {
@@ -685,6 +679,7 @@ async function requestAgentComment(item, idx) {
   const cacheKey = JSON.stringify(payload);
   cancelCommentRequest();
   if (commentCache.has(cacheKey)) {
+    renderLocalReaction(option, safety);
     renderAgentComment(commentCache.get(cacheKey));
     return;
   }
@@ -712,7 +707,7 @@ async function requestAgentComment(item, idx) {
     if (!comment) return;
     commentCache.set(cacheKey, comment);
     if (commentCache.size > COMMENT_CACHE_LIMIT) commentCache.delete(commentCache.keys().next().value);
-    // Intentionally do not call renderAgentComment here.
+    if (commentIsCurrent(item, idx, requestId)) renderAgentComment(comment);
   } catch (_) {
     // Offline, slow, aborted, or failed calls keep the local joke already on screen.
   } finally {
