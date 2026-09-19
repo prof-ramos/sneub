@@ -614,14 +614,6 @@ function setReactBusy(busy) {
   else box.removeAttribute("aria-busy");
 }
 
-function renderCommentPending() {
-  const box = $("react");
-  if (!box) return;
-  box.classList.add("on");
-  setReactBusy(true);
-  box.replaceChildren();
-}
-
 function renderLocalReaction(option, safety = false) {
   const box = $("react");
   if (!box) return;
