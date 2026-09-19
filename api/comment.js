@@ -6,35 +6,20 @@ const {
   jsonResponse,
   parseBody
 } = require("../server/http.js");
+const {
+  DEFAULT_TIMEOUT_MS,
+  providerRequest,
+  providerText
+} = require("../server/gemini-comment.js");
 
 const MAX_BODY_BYTES = 16 * 1024;
 const MAX_PREVIOUS = 64;
 const MAX_COMMENT_CHARS = 280;
-const DEFAULT_TIMEOUT_MS = 8000;
-const DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 const allowRequest = createRateLimiter({ max: 20, windowMs: 5 * 60 * 1000 });
 
 const SAFETY_COMMENT = "Sem piada agora. O que você marcou pode ser sério. Isso merece apoio real, não um roast.";
 const TONES = new Set(["g", "y", "r"]);
 const THEME_STATES = new Set(["good", "warn", "bad"]);
-
-const SYSTEM_INSTRUCTION = [
-  "Você é o comentarista do SNEUB, um site deliberadamente ácido sobre autoengano em relacionamentos.",
-  "Escreva uma observação curta, específica e em português do Brasil sobre o padrão que aparece nas respostas.",
-  "Pode ser áspero: confronte racionalização, medo disfarçado de amor, inércia e desculpas bonitas.",
-  "Ataque a desculpa ou a dinâmica, nunca atributos protegidos da pessoa.",
-  "Não faça diagnóstico clínico, não invente fatos, não dê certeza que os dados não sustentam, não use HTML, não mencione que é um modelo e não use conselho genérico.",
-  "Responda em uma ou duas frases. Retorne SOMENTE JSON válido exatamente com as chaves comment e kind. kind deve ser roast. Não explique seu raciocínio."
-].join(" ");
-
-const COMMENT_RESPONSE_SCHEMA = {
-  type: "object",
-  properties: {
-    comment: { type: "string", description: "1-2 frases em pt-BR" },
-    kind: { type: "string", enum: ["roast"] }
-  },
-  required: ["comment", "kind"]
-};
 
 function validShortText(value, max) {
   return typeof value === "string" && value.trim().length > 0 && value.length <= max;
@@ -85,21 +70,6 @@ function validatePayload(payload) {
   return { ok: true, value: payload };
 }
 
-function providerText(body) {
-  const parts = body &&
-    body.candidates &&
-    body.candidates[0] &&
-    body.candidates[0].content &&
-    Array.isArray(body.candidates[0].content.parts)
-      ? body.candidates[0].content.parts
-      : [];
-  const texts = [];
-  for (const part of parts) {
-    if (part && typeof part.text === "string") texts.push(part.text);
-  }
-  return texts.join("");
-}
-
 function parseComment(text) {
   const raw = typeof text === "string" ? text.trim() : "";
   if (!raw) return null;
@@ -115,45 +85,6 @@ function parseComment(text) {
     return { comment, kind: "roast" };
   }
   return null;
-}
-
-function providerRequest(payload, env, fetchImpl, timeoutMs) {
-  const apiKey = env.SNEUB_COMMENT_API_KEY;
-  const model = env.SNEUB_COMMENT_MODEL;
-  if (!apiKey || !model) {
-    return Promise.reject(Object.assign(new Error("provider_not_configured"), { code: "not_configured" }));
-  }
-  const baseUrl = (env.SNEUB_COMMENT_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
-  const url = `${baseUrl}/models/${encodeURIComponent(model)}:generateContent`;
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  const body = {
-    system_instruction: {
-      parts: [{ text: SYSTEM_INSTRUCTION }]
-    },
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: JSON.stringify(payload) }]
-      }
-    ],
-    generationConfig: {
-      responseMimeType: "application/json",
-      responseSchema: COMMENT_RESPONSE_SCHEMA,
-      maxOutputTokens: 256
-    }
-  };
-  const request = Promise.resolve().then(() => fetchImpl(url, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-goog-api-key": apiKey
-    },
-    body: JSON.stringify(body),
-    signal: controller.signal
-  }));
-  return request.finally(() => clearTimeout(timer));
 }
 
 async function handleComment(req, res, options = {}) {
