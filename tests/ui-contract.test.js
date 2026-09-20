@@ -46,6 +46,15 @@ test("safety output is a dedicated non-roast flow", () => {
   assert.match(app, /if \(safetyLocked\(\)\) return renderSafetyOut/);
 });
 
+test("result copy acknowledges positive signals and avoids a fixed negative verdict", () => {
+  assert.match(app, /const RESULT_COPY =/);
+  assert.match(app, /Tem coisa boa de verdade aqui/);
+  assert.match(app, /O que suas respostas validaram/);
+  assert.match(app, /sinais favoráveis/);
+  assert.doesNotMatch(app, /O padrão que mais apareceu não foi falta de amor/);
+  assert.match(app, /Leitura absolutamente não científica/);
+});
+
 test("home privacy and progressive notebook remain visible in source", () => {
   assert.match(app, /Alternativas podem gerar comentários por IA/);
   assert.match(app, /Ver o resultado agora/);

@@ -94,6 +94,21 @@ test("scores closed answers and merges custom signals by known question themes",
   assert.equal(ignored.some((row) => row.k === "paz"), false);
 });
 
+test("summarizes positive, mixed, concerning and empty signal sets without hiding good answers", () => {
+  assert.deepEqual(core.summarizePatterns([{ good: 4, warn: 1, bad: 0 }]), {
+    good: 4,
+    warn: 1,
+    bad: 0,
+    signals: 5,
+    concern: 1,
+    balance: 3,
+    status: "favorable"
+  });
+  assert.equal(core.summarizePatterns([{ good: 4, warn: 2, bad: 1 }]).status, "mixed");
+  assert.equal(core.summarizePatterns([{ good: 2, warn: 1, bad: 1 }]).status, "attention");
+  assert.equal(core.summarizePatterns([]).status, "unclear");
+});
+
 test("collects only active, valid and allowed custom answers", () => {
   const answers = core.collectCustomAnswers(QUESTIONS, {
     a: { paz: core.CUSTOM_ANSWER, sozinho: 0, seguranca: core.CUSTOM_ANSWER },

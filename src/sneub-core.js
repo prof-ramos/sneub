@@ -124,6 +124,24 @@
     }).sort((left, right) => right.heat - left.heat || right.n - left.n);
   }
 
+  function summarizePatterns(rows) {
+    const totals = rows.reduce((summary, row) => {
+      summary.good += Number.isFinite(row.good) ? row.good : 0;
+      summary.warn += Number.isFinite(row.warn) ? row.warn : 0;
+      summary.bad += Number.isFinite(row.bad) ? row.bad : 0;
+      return summary;
+    }, { good: 0, warn: 0, bad: 0 });
+    const signals = totals.good + totals.warn + totals.bad;
+    const concern = totals.bad * 2 + totals.warn;
+    let status = "unclear";
+    if (signals > 0) {
+      if (totals.bad === 0 && totals.good > totals.warn) status = "favorable";
+      else if (totals.good >= concern) status = "mixed";
+      else status = "attention";
+    }
+    return { ...totals, signals, concern, balance: totals.good - concern, status };
+  }
+
   function collectCustomAnswers(questions, state) {
     return questions.flatMap((question) => {
       if (!allowsCustomAnswer(question) || !hasValidCustomAnswer(state, question)) return [];
@@ -177,6 +195,7 @@
     questionThemes,
     safetyLocked,
     safetyModeAt,
+    summarizePatterns,
     validAnalysisProbabilities,
     validCustomAnalysis
   };

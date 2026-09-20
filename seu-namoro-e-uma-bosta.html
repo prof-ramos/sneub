@@ -443,6 +443,24 @@
     }).sort((left, right) => right.heat - left.heat || right.n - left.n);
   }
 
+  function summarizePatterns(rows) {
+    const totals = rows.reduce((summary, row) => {
+      summary.good += Number.isFinite(row.good) ? row.good : 0;
+      summary.warn += Number.isFinite(row.warn) ? row.warn : 0;
+      summary.bad += Number.isFinite(row.bad) ? row.bad : 0;
+      return summary;
+    }, { good: 0, warn: 0, bad: 0 });
+    const signals = totals.good + totals.warn + totals.bad;
+    const concern = totals.bad * 2 + totals.warn;
+    let status = "unclear";
+    if (signals > 0) {
+      if (totals.bad === 0 && totals.good > totals.warn) status = "favorable";
+      else if (totals.good >= concern) status = "mixed";
+      else status = "attention";
+    }
+    return { ...totals, signals, concern, balance: totals.good - concern, status };
+  }
+
   function collectCustomAnswers(questions, state) {
     return questions.flatMap((question) => {
       if (!allowsCustomAnswer(question) || !hasValidCustomAnswer(state, question)) return [];
@@ -496,6 +514,7 @@
     questionThemes,
     safetyLocked,
     safetyModeAt,
+    summarizePatterns,
     validAnalysisProbabilities,
     validCustomAnalysis
   };
@@ -936,6 +955,7 @@ const LABELS = {
 };
 
 const ROASTS = {
+  favorable: "Pelo que você marcou, isso não parece uma bosta. E, desta vez, o elogio não vem com asterisco.",
   reciprocidade: "Tem amor. Tem história. Tem carinho. Só aparentemente faltou contratar um segundo adulto para o relacionamento.",
   alivio: "Você não odeia a pessoa. Odeia o estado em que fica quando está com ela. São coisas diferentes.",
   potencial: "Você não está namorando alguém. Está namorando uma versão beta que nunca foi lançada.",
@@ -954,6 +974,25 @@ const ROASTS = {
   admiracao: "Difícil construir casa em cima de uma pessoa que você ainda está esperando nascer.",
   ok: "Provavelmente não é uma bosta. Também não é motivo para desligar o cérebro.",
   mix: "Tem coisa boa demais para jogar fora. e coisa ruim demais para fingir que não viu."
+};
+
+const RESULT_COPY = {
+  favorable: {
+    title: "Tem coisa boa de verdade aqui.",
+    lead: (answered, summary) => `Você respondeu ${answered} perguntas. Entre os sinais mapeados, apareceram ${summary.good} favoráveis, ${summary.warn} intermediários e ${summary.bad} de desgaste. O conjunto pende para o que está funcionando — sem transformar isso em prova de perfeição.`
+  },
+  mixed: {
+    title: "Tem coisa boa. Tem coisa pedindo atenção.",
+    lead: (answered, summary) => `Você respondeu ${answered} perguntas. Entre os sinais mapeados, apareceram ${summary.good} favoráveis, ${summary.warn} intermediários e ${summary.bad} de desgaste. A leitura é mista: reconhecer o que funciona não exige ignorar o que cobra caro.`
+  },
+  attention: {
+    title: "O que você marcou pede atenção.",
+    lead: (answered, summary) => `Você respondeu ${answered} perguntas. Entre os sinais mapeados, apareceram ${summary.good} favoráveis, ${summary.warn} intermediários e ${summary.bad} de desgaste. Há coisa boa aí, mas os sinais de desgaste pesaram mais nesta leitura.`
+  },
+  unclear: {
+    title: "Não vou inventar um veredito.",
+    lead: (answered) => `Você respondeu ${answered} perguntas, mas não marcou sinais suficientes para uma leitura equilibrada. Isso é um limite do resultado — não uma sentença sobre a relação.`
+  }
 };
 
 const BLURB = {
@@ -987,6 +1026,7 @@ const {
   patterns: calculatePatterns,
   safetyLocked: stateSafetyLocked,
   safetyModeAt: stateSafetyModeAt,
+  summarizePatterns,
   validCustomAnalysis
 } = SneubCore;
 const KEY = "sneub-v3";
@@ -1241,9 +1281,10 @@ function patterns(customAnalysis) {
   return calculatePatterns(Q, state, customAnalysis);
 }
 
-function roastLine(rows, locked) {
+function roastLine(rows, locked, summary = summarizePatterns(rows)) {
   if (locked) return "Este card fica em branco de propósito. Segurança não vira meme.";
   if (!rows.length) return ROASTS.ok;
+  if (summary.status === "favorable") return ROASTS.favorable;
   const top = rows[0];
   if (top.heat < 0.3) return ROASTS.ok;
   return ROASTS[top.k] || ROASTS.mix;
@@ -1687,23 +1728,25 @@ function renderSafetyOut(options = {}) {
 function renderOut(customAnalysis = null, analysisWarning = "", options = {}) {
   if (safetyLocked()) return renderSafetyOut(options);
   const rows = patterns(customAnalysis);
+  const summary = summarizePatterns(rows);
+  const copy = RESULT_COPY[summary.status];
   const working = rows.filter((r) => r.good && r.heat < 0.35).sort((a, b) => b.good - a.good).slice(0, 3);
   const yellow = rows.filter((r) => r.heat >= 0.35 && r.heat < 0.85);
   const reds = rows.filter((r) => r.heat >= 0.85 || (r.k === "seguranca" && r.bad));
   const attention = [...reds, ...yellow].filter((v, i, arr) => arr.findIndex((x) => x.k === v.k) === i).slice(0, 4);
   const answered = Q.filter((q) => state.a[q.id] != null).length;
-  const line = roastLine(rows, false);
+  const line = roastLine(rows, false, summary);
   setChrome("step", "resultado");
 
   $("out").innerHTML = `
     <div class="count">${answered} perguntas respondidas</div>
-    <h1 class="res" id="out-title" tabindex="-1">Então… temos coisas para conversar.</h1>
+    <h1 class="res" id="out-title" tabindex="-1">${copy.title}</h1>
     ${analysisWarning ? `<div class="analysis-note" role="status"><p>${analysisWarning}</p>${options.canRetry ? `<button class="text-action" id="retryAnalysis" type="button">Tentar a análise novamente</button>` : ""}</div>` : ""}
-    <p class="lead">Você respondeu ${answered} perguntas. O padrão que mais apareceu não foi falta de amor. Foi desgaste, ou a recusa em nomear o desgaste.</p>
+    <p class="lead">${copy.lead(answered, summary)}</p>
     ${working.length ? `
       <div class="block">
-        <div class="k">O que parece estar funcionando</div>
-        ${working.map((r) => `<h3>${LABELS[r.k]}</h3><p>Você marcou, com alguma consistência, sinais de ${LABELS[r.k].toLowerCase()} que ainda estão de pé.</p>`).join("")}
+        <div class="k">O que suas respostas validaram</div>
+        ${working.map((r) => `<h3>${LABELS[r.k]}</h3><p>Você marcou, com alguma consistência, sinais favoráveis de ${LABELS[r.k].toLowerCase()}. Isso também faz parte da leitura.</p>`).join("")}
       </div>` : ""}
     ${attention.length ? attention.map((r) => `
       <div class="block">
@@ -1723,7 +1766,7 @@ function renderOut(customAnalysis = null, analysisWarning = "", options = {}) {
       <textarea id="anos" aria-labelledby="anos-label"></textarea>
     </div>
     <div class="card">
-      <div class="tm">Diagnóstico absolutamente não científico™</div>
+      <div class="tm">Leitura absolutamente não científica™</div>
       <p id="roastcard"></p>
     </div>
     <button class="cta" id="copy" type="button">Compartilhar meu roast</button>
