@@ -9,7 +9,18 @@
   <meta name="description" content="5 minutos. Algumas perguntas inconvenientes. No final, talvez o problema seja seu namoro. Talvez seja você. Talvez sejam os dois." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&display=swap" rel="stylesheet" />
+  <!--
+    Bolt: load Google Fonts without blocking first paint.
+    The CSS already falls back to Georgia / system monospace / sans-serif, so the
+    stylesheet can arrive async. media="print" + onload swap is the standard
+    non-JS-blocking pattern; noscript keeps fonts for no-JS clients.
+    Impact: removes ~1 RTT of render-blocking CSS (+ CSS that references ~24 @font-face
+    files on mobile) from the critical path → faster FCP/LCP on cold loads.
+  -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&display=swap" media="print" onload="this.media='all'" />
+  <noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&display=swap" />
+  </noscript>
   <style>
     :root {
       --paper: oklch(0.945 0.022 92);

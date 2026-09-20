@@ -65,7 +65,6 @@ test("AI comment appends under the local reaction without replacing it", () => {
   assert.match(app, /cancelCommentRequest\(\)/);
 });
 
-
 test("free-text persistence coalesces synchronous localStorage writes", () => {
   assert.match(app, /let saveTimer = null/);
   assert.match(app, /function scheduleSave\(\)[\s\S]*setTimeout\([\s\S]*200\)/);
@@ -74,4 +73,11 @@ test("free-text persistence coalesces synchronous localStorage writes", () => {
   assert.match(app, /state\.syn\[synthesis\.id\] = inp\.value; scheduleSave\(\)/);
   assert.match(app, /state\.anos = e\.target\.value; scheduleSave\(\)/);
   assert.match(app, /window\.addEventListener\("pagehide"[\s\S]*if \(saveTimer\) save\(\)/);
+});
+
+test("Google Fonts stylesheet does not block first paint", () => {
+  // media=print + onload keeps the CSS off the critical path; fallbacks already cover FCP.
+  assert.match(html, /fonts\.googleapis\.com\/css2[^"']*["']\s+media="print"\s+onload=/);
+  assert.match(html, /<noscript>[\s\S]*fonts\.googleapis\.com\/css2/);
+  assert.doesNotMatch(html, /<link href="https:\/\/fonts\.googleapis\.com\/css2[^"]*" rel="stylesheet" \/>/);
 });
