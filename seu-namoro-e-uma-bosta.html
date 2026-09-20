@@ -35,7 +35,7 @@
       --space-2: 16px;
       --space-3: 24px;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
     html, body { min-height: 100%; }
     body {
       background: var(--paper);
@@ -112,7 +112,9 @@
       background: var(--ink); color: var(--paper-2);
       padding: 16px 18px; font-size: 1.05rem;
       width: 100%; margin-top: auto; min-height: 52px;
+      transition: transform .12s ease, opacity .15s ease, background-color .15s ease, box-shadow .15s ease;
     }
+    .cta:active:not(:disabled) { transform: scale(0.985); }
     .cta.hot { background: var(--hot); color: var(--hot-ink); }
     .cta.line { background: transparent; color: var(--ink); border: 2px solid var(--ink); }
     .cta:disabled { opacity: 0.38; cursor: not-allowed; }
@@ -158,18 +160,29 @@
       color: var(--ink);
       min-height: 52px;
       display: flex; align-items: center; gap: 12px;
+      transition: background-color .15s ease, padding-left .15s ease;
+      border-radius: 2px;
+    }
+    .opt:active {
+      background: color-mix(in oklch, var(--ink) 5%, transparent);
     }
     .opt:last-child { border-bottom: 1px solid var(--ink); }
     .opt .mark {
-      flex: 0 0 10px; width: 10px; height: 10px;
+      flex: 0 0 12px; width: 12px; height: 12px;
       border: 1.5px solid var(--ink); border-radius: 50%;
+      transition: transform .18s cubic-bezier(0.16, 1, 0.3, 1), background-color .15s ease, border-color .15s ease;
     }
     .opt[aria-checked="true"] { font-weight: 500; }
     .opt[aria-checked="true"] .mark {
       background: var(--hot); border-color: var(--hot);
+      transform: scale(1.15);
     }
-    .react { display: none; margin-top: 22px; padding-top: 18px; }
+    .react {
+      display: none; margin-top: 20px; padding: 14px 16px;
+      background: var(--paper-2); border-left: 3px solid var(--ink);
+    }
     .react.on { display: block; animation: up .35s cubic-bezier(0.16, 1, 0.3, 1); }
+    .react.grave, .screen.grave .react { border-left-color: var(--hot); }
     .react .joke {
       font-family: "Archivo Black", sans-serif;
       font-size: clamp(1.15rem, 4.2vw, 1.45rem);
@@ -244,6 +257,7 @@
     .card {
       margin: 28px 0 12px; padding: 22px 20px;
       border: 2px solid var(--ink); background: var(--paper-2);
+      box-shadow: 3px 3px 0 var(--ink);
     }
     .card .tm {
       font-family: "IBM Plex Mono", monospace; font-size: 12px;
@@ -281,6 +295,30 @@
     @media (max-height: 520px) {
       .poster { font-size: clamp(2.2rem, 12vh, 4rem); margin-top: 12px; }
       .aside { margin-top: 16px; }
+    }
+    @media (max-width: 600px) {
+      .app { padding: calc(14px + var(--safe-t)) 18px calc(34px + var(--safe-b)); }
+      .poster { font-size: clamp(2.8rem, 13.5vw, 4.4rem); line-height: .86; }
+      .screen > .chap:first-child { margin-top: 16px; }
+      h1.q {
+        font-size: clamp(1.55rem, 5.8vw, 2.1rem);
+        line-height: 1.16;
+        letter-spacing: -.025em;
+        max-width: 100%;
+      }
+      .opts { margin-top: 16px; }
+      .opt { font-size: 1.12rem; padding: 14px 6px 14px 0; min-height: 48px; }
+      .react { margin-top: 16px; padding: 12px 14px; }
+      .react .joke { font-size: 1.15rem; }
+      .nav { margin-top: 20px; gap: 8px; }
+      .cta { padding: 15px 16px; font-size: 1rem; min-height: 48px; }
+      .res { font-size: clamp(1.85rem, 7.2vw, 2.6rem); line-height: .96; margin: 16px 0 14px; }
+      .lead { font-size: 1.15rem; margin-bottom: 22px; }
+      .block { padding: 15px 0; }
+      .block h3 { font-size: 1.25rem; }
+      .card { padding: 18px 16px; margin: 22px 0 12px; }
+      .card p { font-size: 1.2rem; }
+      .warnbox { margin-top: 20px; font-size: 1rem; }
     }
     @media (max-width: 360px) {
       .poster { font-size: clamp(2.6rem, 14vw, 3.4rem); }
